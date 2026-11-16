@@ -57,6 +57,11 @@
  * stays. Open items for nights the last shop covered come back as top-ups.
  * The shop lives in input_text.meals_shop (JSON), so every screen agrees.
  *
+ * v1.32: book a delivery slot from the trolley card. The slot chip opens a
+ * sheet of Woolworths' delivery times (by day, with the fee); a tap books it
+ * on the trolley through the Woolies Bridge app (slot_set), and "Let the slot
+ * go" releases it. Checkout and payment stay in the Woolworths app.
+ *
  * v1.31: the trolley card's ↗ Woolworths link is hidden on the wall panel
  * (onscreen keyboard on, or ?kiosk in the address), since it opened a
  * full-screen browser tab. website_link: true/false in the config overrides.

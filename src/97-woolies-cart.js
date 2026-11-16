@@ -35,6 +35,19 @@ ha-card.narrow .bt { display:none; }
 .fee { display:flex; justify-content:space-between; font-size:13px; color:var(--secondary-text-color); padding-top:6px; }
 .empty { text-align:center; padding:18px 0 8px; color:var(--secondary-text-color); }
 .empty .e { font-size:40px; }
+button.chip { cursor:pointer; border:none; font:inherit; font-size:13px; font-weight:600; }
+button.chip:hover { filter:brightness(.96); }
+.sdays { display:flex; gap:6px; overflow-x:auto; padding:2px 0 10px; scrollbar-width:none; }
+.sdays::-webkit-scrollbar { display:none; }
+.sdays button { flex:none; height:36px; padding:0 14px; border-radius:999px; border:1.5px solid var(--divider-color, rgba(127,127,127,.35)); background:none; color:var(--primary-text-color, inherit); font:inherit; font-size:13.5px; font-weight:600; cursor:pointer; }
+.sdays button.on { border-color:var(--primary-color, #03a9f4); background:color-mix(in srgb, var(--primary-color, #03a9f4) 18%, transparent); }
+.sdays button small { font-weight:500; color:var(--secondary-text-color, #777); margin-left:4px; }
+.slots { display:grid; grid-template-columns:repeat(auto-fill, minmax(150px, 1fr)); gap:8px; }
+.slots button { min-height:58px; border-radius:14px; border:1.5px solid var(--divider-color, rgba(127,127,127,.35)); background:none; color:var(--primary-text-color, inherit); font:inherit; cursor:pointer; text-align:left; padding:8px 12px; }
+.slots button b { display:block; font-size:15px; }
+.slots button span { font-size:12.5px; color:var(--secondary-text-color, #777); }
+.slots button.on { border-color:#43a047; background:color-mix(in srgb, #43a047 14%, transparent); }
+.slots button:disabled { opacity:.45; cursor:default; }
 .pinr { display:flex; gap:8px; align-items:center; flex-wrap:wrap; margin:0 0 12px; }
 .pinr .i { width:120px; font-size:20px; letter-spacing:6px; text-align:center; }
 ha-card.xs .ln { grid-template-columns:minmax(0,1fr) auto 32px; }
@@ -109,7 +122,7 @@ class WooliesTrolleyCard extends MPBase {
         <span class="s">${known ? `${shown.length} item${shown.length === 1 ? "" : "s"}${c.total_cents != null ? " · " + money(c.total_cents) : ""}` : ""}</span><span class="sp"></span>
         <button class="btn sm" data-a="refresh" ${this._busy ? "disabled" : ""} aria-label="Refresh the trolley">↻<span class="bt"> Refresh</span></button>
         ${this._panel() ? "" : `<a class="btn sm" href="https://www.woolworths.co.nz/cart" target="_blank" rel="noopener" aria-label="Open the trolley in Woolworths">↗<span class="bt"> Woolworths</span></a>`}</div>
-      ${known ? `<div class="meta">${c.has_slot ? `<span class="chip ok">🚚 ${esc(c.slot || "Delivery slot booked")}</span>` : `<span class="chip no">No delivery slot booked yet</span>`}
+      ${known ? `<div class="meta">${c.has_slot ? `<button class="chip ok" data-a="slots" aria-label="Change the delivery slot">🚚 ${esc(this._slotText(c))} · Change</button>` : `<button class="chip no" data-a="slots">🚚 Book a delivery slot</button>`}
         <span class="mut" style="font-size:12.5px">Updated ${this._ago(c.at)}</span></div>` : ""}
       ${(c.issues || []).map((i) => `<div class="warn">${esc(i)}</div>`).join("")}
       ${this._busy ? `<div class="busy"><i></i>Talking to Woolworths… about 15 seconds</div>` : ""}
@@ -123,9 +136,79 @@ class WooliesTrolleyCard extends MPBase {
     this._resize();
     if (this._needPin && locked) { const i = el.querySelector("#tcpin"); if (i && !i.value) i.focus(); }
   }
+  // ---- delivery slots ----
+  _day(iso) {
+    const d = new Date(iso), t = new Date(); t.setHours(0, 0, 0, 0);
+    const n = Math.round((new Date(d).setHours(0, 0, 0, 0) - t) / 86400000);
+    return n === 0 ? "Today" : n === 1 ? "Tomorrow" : d.toLocaleDateString("en-NZ", { weekday: "short", day: "numeric", month: "short" });
+  }
+  _hm(iso) {
+    const d = new Date(iso), h = d.getHours(), m = d.getMinutes();
+    return `${h % 12 || 12}${m ? ":" + String(m).padStart(2, "0") : ""}${h < 12 ? "am" : "pm"}`;
+  }
+  _range(s) { return `${this._hm(s.start)} – ${this._hm(s.end)}`; }
+  _slotText(c) {
+    const s = c.slot_info;
+    return s && s.start ? `${this._day(s.start)}, ${this._range(s)}` : (c.slot || "Delivery slot booked");
+  }
+  async _sheetSlots(refresh) {
+    if (this._wbLocked()) { this._needPin = true; this._paint(); this._toast("Enter your household PIN first."); return; }
+    const c = this._cart() || {}, cur = (c.slot_info || {}).id, S = this._slots;
+    let body;
+    if (this._sbusy) body = `<div class="busy"><i></i>${esc(this._sbusy)}</div>`;
+    else if (!S) body = `<div class="busy"><i></i>Asking Woolworths for delivery times… about 15 seconds</div>`;
+    else if (S.error) body = `<div class="warn">${esc(S.error)}</div>`;
+    else {
+      const days = [];
+      for (const s of S.slots || []) { const dt = new Date(s.start), k = `${dt.getFullYear()}-${dt.getMonth() + 1}-${dt.getDate()}`; let d = days.find((x) => x.k === k); if (!d) days.push(d = { k, iso: s.start, list: [] }); d.list.push(s); }
+      if (!days.length) body = `<p class="mut">Woolworths isn't offering any delivery times to ${esc(S.address || "your address")} right now.</p>`;
+      else {
+        const open = (d) => d.list.filter((s) => s.available).length;
+        if (!days.find((d) => d.k === this._sday)) this._sday = ((cur && days.find((d) => d.list.some((s) => s.id === cur))) || days.find(open) || days[0]).k;
+        const day = days.find((d) => d.k === this._sday);
+        body = `<div class="sdays">${days.map((d) => `<button data-a="sday" data-k="${d.k}" class="${d.k === this._sday ? "on" : ""}">${esc(this._day(d.iso))}<small>${open(d) ? open(d) + " free" : "full"}</small></button>`).join("")}</div>
+          <div class="slots">${day.list.map((s) => `<button data-a="sbook" data-id="${esc(s.id)}" class="${s.id === cur ? "on" : ""}" ${s.available && s.id !== cur ? "" : "disabled"}>
+            <b>${esc(this._range(s))}</b><span>${s.id === cur ? "✓ Booked" : !s.available ? (/cutoff/.test(s.why || "") ? "Closed" : "Full") : s.fee_cents != null ? (s.fee_cents ? money(s.fee_cents) + " delivery" : "Free delivery") : ""}</span></button>`).join("")}</div>`;
+      }
+    }
+    const html = `<div class="pad"><h2>🚚 Delivery slot</h2>
+      <p class="mut" style="margin:6px 0 12px;font-size:13px">${S && S.address ? `To ${esc(S.address)}. ` : ""}Tap a time to book it on the trolley. Then check out and pay in the Woolworths app before the slot's cut-off.</p>
+      ${body}</div>
+      <div class="foot"><button class="btn" data-a="close">Close</button><span class="sp"></span>
+        ${cur ? `<button class="btn" data-a="sclear" ${this._sbusy ? "disabled" : ""}>Let the slot go</button>` : ""}</div>`;
+    if (refresh && this._ov && this._sheet === "slots") { const sh = this._ov.querySelector(".sh"), y = sh.scrollTop; sh.innerHTML = html; sh.scrollTop = y; }
+    else {
+      this._openSheet(html, (a, b) => {
+        if (a === "close") this._closeSheet();
+        else if (a === "sday") { this._sday = b.dataset.k; this._sheetSlots(true); }
+        else if (a === "sbook") this._book(b.dataset.id);
+        else if (a === "sclear") this._book("");
+      });
+      this._sheet = "slots";
+    }
+    if (!refresh) {
+      this._slots = null; this._sbusy = ""; this._sheetSlots(true);
+      try { this._slots = await this._wb("slots", {}, 120000); }
+      catch (e) { this._slots = { error: e.message || String(e) }; }
+      if (this._sheet === "slots") this._sheetSlots(true);
+    }
+  }
+  async _book(id) {
+    if (this._sbusy || this._busy) return;
+    const s = ((this._slots || {}).slots || []).find((x) => x.id === id);
+    this._sbusy = id ? `Booking ${this._day(s ? s.start : "")} ${s ? this._range(s) : ""}…` : "Letting the slot go…";
+    this._sheetSlots(true);
+    try {
+      if (!(await this._run(() => this._wb("slot_set", { slot: id }, 120000)))) return;
+      if (this._sheet === "slots") this._closeSheet();
+      const c = this._cart() || {};
+      this._toast(id ? (c.has_slot ? `Booked: ${this._slotText(c)}. Check out in the Woolworths app.` : "Woolworths didn't keep that slot.") : "Slot let go.");
+    } finally { this._sbusy = ""; if (this._sheet === "slots") this._sheetSlots(true); }
+  }
   _line(v) { return ((this._cart() || {}).lines || []).find((l) => l.variant === v); }
   _act(a, b) {
     if (a === "refresh") return this._run(() => this._wb("cart", {}, 120000));
+    if (a === "slots") return this._sheetSlots();
     if (a === "unlock") {
       const i = this.shadowRoot.getElementById("tcpin"), v = i ? i.value.trim() : "";
       if (!/^[0-9]{4}$/.test(v)) { this._toast("A PIN is four digits."); return; }
@@ -153,8 +236,8 @@ class WooliesTrolleyCard extends MPBase {
   async _run(fn, after) {
     if (this._wbLocked()) { this._needPin = true; this._paint(); return; }
     this._busy = true; this._paint();
-    try { await fn(); }
-    catch (e) { this._toast(e.message || String(e)); if (this._wbLocked()) this._needPin = true; }
+    try { await fn(); return true; }
+    catch (e) { this._toast(e.message || String(e)); if (this._wbLocked()) this._needPin = true; return false; }
     finally { this._busy = false; if (after) after(); this._paint(); }
   }
 }

@@ -70,7 +70,7 @@ Object.assign(ShoppingListCard.prototype, {
         <div class="wbpr"><input class="i" id="wbpin" type="password" inputmode="numeric" maxlength="4" autocomplete="off" placeholder="PIN">
         <button class="btn pri" data-a="wbunlock">Unlock</button></div></div>` : !this._wmap ? `<p class="mut">Loading your product matches…</p>` : !its.length ? `<p class="mut">Nothing on the next shop.</p>` : its.map((s) => this._wbRow(s)).join("");
     const html = `<div class="pad"><h2>🛒 Fill the Woolworths trolley</h2>
-      <p class="mut" style="margin:6px 0 10px;font-size:13px">Pick the product for each item once and it's remembered. Then one tap adds them all. Book the slot and check out in the Woolworths app.
+      <p class="mut" style="margin:6px 0 10px;font-size:13px">Pick the product for each item once and it's remembered. Then one tap adds them all. Book a delivery slot on the trolley card, then check out in the Woolworths app.
       ${sen.state === "error" || sen.state === "signed_out" ? `<br><span class="noi">⚠️ ${esc(sen.attributes.last_error || "Woolies Bridge needs attention.")}</span>` : ""}</p>
       ${todo ? `<div class="nh mut" style="margin:0 0 8px">${todo} item${todo === 1 ? "" : "s"} still to match.</div>` : ""}
       <div id="wbrows">${body}</div></div>
