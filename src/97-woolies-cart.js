@@ -48,6 +48,16 @@ button.chip:hover { filter:brightness(.96); }
 .slots button span { font-size:12.5px; color:var(--secondary-text-color, #777); }
 .slots button.on { border-color:#43a047; background:color-mix(in srgb, #43a047 14%, transparent); }
 .slots button:disabled { opacity:.45; cursor:default; }
+.seg { display:inline-flex; margin-top:12px; padding:3px; border-radius:999px; background:color-mix(in srgb, var(--primary-text-color, #000) 7%, transparent); }
+.seg button { height:36px; padding:0 16px; border:none; border-radius:999px; background:none; color:var(--primary-text-color, inherit); font:inherit; font-size:14px; font-weight:600; cursor:pointer; }
+.seg button.on { background:var(--card-background-color, #fff); box-shadow:0 1px 3px rgba(0,0,0,.18); }
+.stp { display:flex; align-items:center; justify-content:space-between; gap:8px; margin:0 0 10px; font-size:14.5px; }
+.slots.pk { grid-template-columns:repeat(auto-fill, minmax(120px, 1fr)); }
+.stl { display:grid; grid-template-columns:repeat(auto-fill, minmax(200px, 1fr)); gap:8px; }
+.stl button { border-radius:14px; border:1.5px solid var(--divider-color, rgba(127,127,127,.35)); background:none; color:var(--primary-text-color, inherit); font:inherit; cursor:pointer; text-align:left; padding:10px 12px; }
+.stl button b { display:block; font-size:15px; }
+.stl button span { font-size:12.5px; color:var(--secondary-text-color, #777); }
+.stl button.on { border-color:var(--primary-color, #03a9f4); background:color-mix(in srgb, var(--primary-color, #03a9f4) 14%, transparent); }
 .pinr { display:flex; gap:8px; align-items:center; flex-wrap:wrap; margin:0 0 12px; }
 .pinr .i { width:120px; font-size:20px; letter-spacing:6px; text-align:center; }
 ha-card.xs .ln { grid-template-columns:minmax(0,1fr) auto 32px; }
@@ -122,7 +132,7 @@ class WooliesTrolleyCard extends MPBase {
         <span class="s">${known ? `${shown.length} item${shown.length === 1 ? "" : "s"}${c.total_cents != null ? " · " + money(c.total_cents) : ""}` : ""}</span><span class="sp"></span>
         <button class="btn sm" data-a="refresh" ${this._busy ? "disabled" : ""} aria-label="Refresh the trolley">↻<span class="bt"> Refresh</span></button>
         ${this._panel() ? "" : `<a class="btn sm" href="https://www.woolworths.co.nz/cart" target="_blank" rel="noopener" aria-label="Open the trolley in Woolworths">↗<span class="bt"> Woolworths</span></a>`}</div>
-      ${known ? `<div class="meta">${c.has_slot ? `<button class="chip ok" data-a="slots" aria-label="Change the delivery slot">🚚 ${esc(this._slotText(c))} · Change</button>` : `<button class="chip no" data-a="slots">🚚 Book a delivery slot</button>`}
+      ${known ? `<div class="meta">${c.has_slot ? `<button class="chip ok" data-a="slots" aria-label="Change the slot">${(c.slot_info || {}).method === "pickup" ? "🛍️" : "🚚"} ${esc(this._slotText(c))} · Change</button>` : `<button class="chip no" data-a="slots">🚚 Book a delivery or pickup slot</button>`}
         <span class="mut" style="font-size:12.5px">Updated ${this._ago(c.at)}</span></div>` : ""}
       ${(c.issues || []).map((i) => `<div class="warn">${esc(i)}</div>`).join("")}
       ${this._busy ? `<div class="busy"><i></i>Talking to Woolworths… about 15 seconds</div>` : ""}
@@ -149,53 +159,84 @@ class WooliesTrolleyCard extends MPBase {
   _range(s) { return `${this._hm(s.start)} – ${this._hm(s.end)}`; }
   _slotText(c) {
     const s = c.slot_info;
-    return s && s.start ? `${this._day(s.start)}, ${this._range(s)}` : (c.slot || "Delivery slot booked");
+    if (!s || !s.start) return c.slot || "Slot booked";
+    return `${s.method === "pickup" ? "Pick up " : ""}${this._day(s.start)}, ${this._range(s)}${s.method === "pickup" && s.store ? " · " + s.store.replace(/ Woolworths$/, "") : ""}`;
+  }
+  async _loadSlots(mode, store) {
+    const key = mode;
+    this._slots = Object.assign({}, this._slots, { [key]: null });
+    this._sheetSlots(true);
+    try { this._slots[key] = await this._wb("slots", Object.assign({ method: mode }, store ? { store } : {}), 120000); }
+    catch (e) { this._slots[key] = { error: e.message || String(e) }; }
+    if (this._sheet === "slots") this._sheetSlots(true);
+  }
+  async _loadStores() {
+    if (this._stores) return;
+    this._stores = { loading: true }; this._sheetSlots(true);
+    try { this._stores = await this._wb("stores", { q: this._cfg.store_search || "Hamilton" }, 90000); }
+    catch (e) { this._stores = { error: e.message || String(e) }; }
+    if (this._sheet === "slots") this._sheetSlots(true);
+  }
+  _slotGrid(S, cur) {
+    const days = [];
+    for (const s of S.slots || []) { const dt = new Date(s.start), k = `${dt.getFullYear()}-${dt.getMonth() + 1}-${dt.getDate()}`; let d = days.find((x) => x.k === k); if (!d) days.push(d = { k, iso: s.start, list: [] }); d.list.push(s); }
+    const pick = this._smode === "pickup";
+    if (!days.length) return `<p class="mut">Woolworths isn't offering any ${pick ? "pickup times at this store" : "delivery times to " + esc(S.address || "your address")} right now.</p>`;
+    const open = (d) => d.list.filter((s) => s.available).length;
+    if (!days.find((d) => d.k === this._sday)) this._sday = ((cur && days.find((d) => d.list.some((s) => s.id === cur))) || days.find(open) || days[0]).k;
+    const day = days.find((d) => d.k === this._sday);
+    const what = pick ? "pickup" : "delivery";
+    return `<div class="sdays">${days.map((d) => `<button data-a="sday" data-k="${d.k}" class="${d.k === this._sday ? "on" : ""}">${esc(this._day(d.iso))}<small>${open(d) ? open(d) + " free" : "full"}</small></button>`).join("")}</div>
+      <div class="slots${pick ? " pk" : ""}">${day.list.map((s) => `<button data-a="sbook" data-id="${esc(s.id)}" class="${s.id === cur ? "on" : ""}" ${s.available && s.id !== cur ? "" : "disabled"}>
+        <b>${esc(this._range(s))}</b><span>${s.id === cur ? "✓ Booked" : !s.available ? (/cutoff/.test(s.why || "") ? "Closed" : "Full") : s.fee_cents != null ? (s.fee_cents ? money(s.fee_cents) + " " + what : "Free " + what) : ""}</span></button>`).join("")}</div>`;
   }
   async _sheetSlots(refresh) {
     if (this._wbLocked()) { this._needPin = true; this._paint(); this._toast("Enter your household PIN first."); return; }
-    const c = this._cart() || {}, cur = (c.slot_info || {}).id, S = this._slots;
+    const c = this._cart() || {}, cur = (c.slot_info || {}).id;
+    if (!refresh) { this._smode = (c.slot_info || {}).method === "pickup" ? "pickup" : (this._smode || "delivery"); this._slots = {}; this._spick = false; this._sday = null; }
+    const pick = this._smode === "pickup", S = (this._slots || {})[this._smode];
     let body;
     if (this._sbusy) body = `<div class="busy"><i></i>${esc(this._sbusy)}</div>`;
-    else if (!S) body = `<div class="busy"><i></i>Asking Woolworths for delivery times… about 15 seconds</div>`;
-    else if (S.error) body = `<div class="warn">${esc(S.error)}</div>`;
-    else {
-      const days = [];
-      for (const s of S.slots || []) { const dt = new Date(s.start), k = `${dt.getFullYear()}-${dt.getMonth() + 1}-${dt.getDate()}`; let d = days.find((x) => x.k === k); if (!d) days.push(d = { k, iso: s.start, list: [] }); d.list.push(s); }
-      if (!days.length) body = `<p class="mut">Woolworths isn't offering any delivery times to ${esc(S.address || "your address")} right now.</p>`;
-      else {
-        const open = (d) => d.list.filter((s) => s.available).length;
-        if (!days.find((d) => d.k === this._sday)) this._sday = ((cur && days.find((d) => d.list.some((s) => s.id === cur))) || days.find(open) || days[0]).k;
-        const day = days.find((d) => d.k === this._sday);
-        body = `<div class="sdays">${days.map((d) => `<button data-a="sday" data-k="${d.k}" class="${d.k === this._sday ? "on" : ""}">${esc(this._day(d.iso))}<small>${open(d) ? open(d) + " free" : "full"}</small></button>`).join("")}</div>
-          <div class="slots">${day.list.map((s) => `<button data-a="sbook" data-id="${esc(s.id)}" class="${s.id === cur ? "on" : ""}" ${s.available && s.id !== cur ? "" : "disabled"}>
-            <b>${esc(this._range(s))}</b><span>${s.id === cur ? "✓ Booked" : !s.available ? (/cutoff/.test(s.why || "") ? "Closed" : "Full") : s.fee_cents != null ? (s.fee_cents ? money(s.fee_cents) + " delivery" : "Free delivery") : ""}</span></button>`).join("")}</div>`;
-      }
+    else if (pick && this._spick) {
+      const T = this._stores || {};
+      const curStore = (S && S.store) || T.current || {};
+      body = T.loading ? `<div class="busy"><i></i>Finding Woolworths stores…</div>` : T.error ? `<div class="warn">${esc(T.error)}</div>`
+        : `<div class="stl">${(T.stores || []).map((t) => `<button data-a="sstore" data-id="${esc(t.id)}" data-n="${esc(t.name)}" class="${t.id === curStore.id ? "on" : ""}"><b>${esc(t.name.replace(/ Woolworths$/, ""))}</b><span>${esc([t.street, t.suburb].filter(Boolean).join(", "))}</span></button>`).join("")}</div>`;
     }
-    const html = `<div class="pad"><h2>🚚 Delivery slot</h2>
-      <p class="mut" style="margin:6px 0 12px;font-size:13px">${S && S.address ? `To ${esc(S.address)}. ` : ""}Tap a time to book it on the trolley. Then check out and pay in the Woolworths app before the slot's cut-off.</p>
+    else if (!S) body = `<div class="busy"><i></i>Asking Woolworths for ${pick ? "pickup" : "delivery"} times… about 15 seconds</div>`;
+    else if (S.error) body = `<div class="warn">${esc(S.error)}</div>`;
+    else body = (pick ? `<div class="stp"><span>🛍️ <b>${esc((S.store || {}).name || "")}</b></span><button class="btn sm" data-a="sstores">Change store</button></div>` : "") + this._slotGrid(S, cur);
+    const sub = pick ? (this._spick ? "Pick the store you'll collect from. It's remembered for next time." : "Tap a time to book it on the trolley. Then check out and pay in the Woolworths app before the cut-off.")
+      : `${S && S.address ? `To ${esc(S.address)}. ` : ""}Tap a time to book it on the trolley. Then check out and pay in the Woolworths app before the cut-off.`;
+    const html = `<div class="pad"><h2>${pick ? "🛍️ Click &amp; collect" : "🚚 Delivery"} slot</h2>
+      <div class="seg" role="tablist"><button data-a="smode" data-m="delivery" class="${pick ? "" : "on"}" role="tab" aria-selected="${!pick}">🚚 Delivery</button><button data-a="smode" data-m="pickup" class="${pick ? "on" : ""}" role="tab" aria-selected="${pick}">🛍️ Click &amp; collect</button></div>
+      <p class="mut" style="margin:10px 0 12px;font-size:13px">${sub}</p>
       ${body}</div>
-      <div class="foot"><button class="btn" data-a="close">Close</button><span class="sp"></span>
-        ${cur ? `<button class="btn" data-a="sclear" ${this._sbusy ? "disabled" : ""}>Let the slot go</button>` : ""}</div>`;
+      <div class="foot"><button class="btn" data-a="${pick && this._spick ? "sback" : "close"}">${pick && this._spick ? "Back" : "Close"}</button><span class="sp"></span>
+        ${cur && !this._spick ? `<button class="btn" data-a="sclear" ${this._sbusy ? "disabled" : ""}>Let the slot go</button>` : ""}</div>`;
     if (refresh && this._ov && this._sheet === "slots") { const sh = this._ov.querySelector(".sh"), y = sh.scrollTop; sh.innerHTML = html; sh.scrollTop = y; }
     else {
       this._openSheet(html, (a, b) => {
         if (a === "close") this._closeSheet();
+        else if (a === "smode") {
+          if (b.dataset.m === this._smode) return;
+          this._smode = b.dataset.m; this._spick = false; this._sday = null;
+          if (!(this._smode in this._slots)) this._loadSlots(this._smode); else this._sheetSlots(true);
+        }
+        else if (a === "sstores") { this._spick = true; this._sheetSlots(true); this._loadStores(); }
+        else if (a === "sback") { this._spick = false; this._sheetSlots(true); }
+        else if (a === "sstore") { this._spick = false; this._sday = null; this._loadSlots("pickup", { id: b.dataset.id, name: b.dataset.n }); }
         else if (a === "sday") { this._sday = b.dataset.k; this._sheetSlots(true); }
         else if (a === "sbook") this._book(b.dataset.id);
         else if (a === "sclear") this._book("");
       });
       this._sheet = "slots";
     }
-    if (!refresh) {
-      this._slots = null; this._sbusy = ""; this._sheetSlots(true);
-      try { this._slots = await this._wb("slots", {}, 120000); }
-      catch (e) { this._slots = { error: e.message || String(e) }; }
-      if (this._sheet === "slots") this._sheetSlots(true);
-    }
+    if (!refresh) this._loadSlots(this._smode);
   }
   async _book(id) {
     if (this._sbusy || this._busy) return;
-    const s = ((this._slots || {}).slots || []).find((x) => x.id === id);
+    const s = (((this._slots || {})[this._smode] || {}).slots || []).find((x) => x.id === id);
     this._sbusy = id ? `Booking ${this._day(s ? s.start : "")} ${s ? this._range(s) : ""}…` : "Letting the slot go…";
     this._sheetSlots(true);
     try {

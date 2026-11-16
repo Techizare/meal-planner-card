@@ -57,6 +57,10 @@
  * stays. Open items for nights the last shop covered come back as top-ups.
  * The shop lives in input_text.meals_shop (JSON), so every screen agrees.
  *
+ * v1.33: Click & collect. The slot sheet has a Delivery / Click & collect
+ * switch; pickup shows half-hour times at a chosen store (Change store lists
+ * the Hamilton stores; the app remembers the pick, Claudelands to start).
+ *
  * v1.32: book a delivery slot from the trolley card. The slot chip opens a
  * sheet of Woolworths' delivery times (by day, with the fee); a tap books it
  * on the trolley through the Woolies Bridge app (slot_set), and "Let the slot
