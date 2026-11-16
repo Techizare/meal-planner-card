@@ -4,6 +4,7 @@ const SL_STYLE = BASE + `
 .wbt { font-size:14.5px; }
 .wbm { display:flex; align-items:center; gap:8px; flex-wrap:wrap; margin-top:6px; font-size:13.5px; }
 .wbp { flex:1 1 200px; cursor:pointer; text-decoration:underline dotted; text-underline-offset:3px; }
+.wbpin p { margin:4px 0 10px; } .wbpr { display:flex; gap:8px; align-items:center; } .wbpr .i { width:120px; font-size:20px; letter-spacing:6px; text-align:center; }
 .wbs { font-size:12px; font-weight:700; margin-left:6px; }
 .wbs.ok { color:#43a047; } .wbs.bad { color:var(--error-color, #d64541); }
 .svs { display:flex; align-items:center; gap:6px; font-size:13px; }

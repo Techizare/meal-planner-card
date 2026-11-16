@@ -1,9 +1,24 @@
-// 🛒 Woolworths trolley, part of the shopping list card (needs the Woolies Bridge add-on; admins only).
+// 🛒 Woolworths trolley, part of the shopping list card (needs the Woolies Bridge add-on; non-admins need a household PIN).
 // Kept in its own file and mixed into the class, so the shopping list file stays readable.
 Object.assign(ShoppingListCard.prototype, {
-  _wbOn() { const h = this._hass; return !!(h && h.states["sensor.woolies_bridge"] && h.user && h.user.is_admin); },
+  _wbOn() { const h = this._hass; return !!(h && h.states["sensor.woolies_bridge"]); },
+  // Admins talk to the add-on directly. Everyone else goes through script.woolies_request, which checks a
+  // household PIN first (non-admins can't fire or hear the add-on's events). The PIN is kept until the page reloads.
+  _wbAdmin() { const u = this._hass && this._hass.user; return !!(u && u.is_admin); },
+  _wbLocked() { return !this._wbAdmin() && !this._wbPin; },
+  async _wbPinCall(op, data, ms) {
+    const r = await this._hass.callWS({ type: "call_service", domain: "script", service: "woolies_request",
+      service_data: { pin: this._wbPin, op, req: data, wait: Math.round(ms / 1000) }, return_response: true });
+    const d = (r && r.response) || {};
+    if (!d.ok) { if (d.pin) this._wbPin = ""; throw new Error(d.error || "Woolies Bridge failed"); }
+    return d.data;
+  },
   // One request to the add-on: fire woolies_request, wait for the woolies_result with the same id.
   async _wb(op, data = {}, ms = 90000) {
+    if (!this._wbAdmin()) {
+      if (!this._wbPin) throw new Error("Enter your PIN to use the trolley.");
+      return this._wbPinCall(op, data, ms);
+    }
     if (!this._wbSub) {
       this._wbWait = {};
       this._wbSub = this._hass.connection.subscribeEvents((ev) => {
@@ -49,7 +64,9 @@ Object.assign(ShoppingListCard.prototype, {
     const sen = this._hass.states["sensor.woolies_bridge"] || { state: "unknown", attributes: {} };
     const ready = (this._wmap ? its.filter((s) => { const m = this._wmap[normName(s.name)]; return m && !m.skip && !(this._wres[s.uid] || {}).ok; }) : []);
     const todo = this._wmap ? its.filter((s) => !this._wmap[normName(s.name)]).length : 0;
-    const body = !this._wmap ? `<p class="mut">Loading your product matches…</p>` : !its.length ? `<p class="mut">Nothing on the next shop.</p>` : its.map((s) => this._wbRow(s)).join("");
+    const body = this._wbLocked() ? `<div class="wbpin"><p class="mut">Enter your household PIN to use the trolley.</p>
+        <div class="wbpr"><input class="i" id="wbpin" type="password" inputmode="numeric" maxlength="4" autocomplete="off" placeholder="PIN">
+        <button class="btn pri" data-a="wbunlock">Unlock</button></div></div>` : !this._wmap ? `<p class="mut">Loading your product matches…</p>` : !its.length ? `<p class="mut">Nothing on the next shop.</p>` : its.map((s) => this._wbRow(s)).join("");
     const html = `<div class="pad"><h2>🛒 Fill the Woolworths trolley</h2>
       <p class="mut" style="margin:6px 0 10px;font-size:13px">Pick the product for each item once and it's remembered. Then one tap adds them all. Book the slot and check out in the Woolworths app.
       ${sen.state === "error" || sen.state === "signed_out" ? `<br><span class="noi">⚠️ ${esc(sen.attributes.last_error || "Woolies Bridge needs attention.")}</span>` : ""}</p>
@@ -62,6 +79,7 @@ Object.assign(ShoppingListCard.prototype, {
     else {
       this._openSheet(html, async (a, b) => {
         if (a === "close") this._closeSheet();
+        else if (a === "wbunlock") this._wbUnlock();
         else if (a === "wbpick") { const s = this._item(b.dataset.uid); if (s) this._sheetWSearch(s); }
         else if (a === "wbq") {
           const s = this._item(b.dataset.uid), mt = s && this._wmap[normName(s.name)]; if (!mt) return;
@@ -70,12 +88,19 @@ Object.assign(ShoppingListCard.prototype, {
         } else if (a === "wbadd") this._wbAdd();
       });
       this._ov.addEventListener("change", (e) => { if (e.target.id === "wbtick") this._wtick = e.target.checked; });
+      this._ov.addEventListener("keydown", (e) => { if (e.target.id === "wbpin" && e.key === "Enter") this._wbUnlock(); });
       this._sheet = "trolley";
     }
+    if (this._wbLocked()) { const i = this._ov && this._ov.querySelector("#wbpin"); if (i) i.focus(); return; }
     if (!this._wmap) {
-      try { this._wmap = await this._wb("map_get", {}, 30000); } catch (e) { this._wmap = {}; this._toast(e.message); }
+      try { this._wmap = await this._wb("map_get", {}, 30000); } catch (e) { if (!this._wbLocked()) this._wmap = {}; this._toast(e.message); }
       if (this._sheet === "trolley") this._sheetTrolley(true);
     }
+  },
+  _wbUnlock() {
+    const i = this._ov && this._ov.querySelector("#wbpin"), v = i ? i.value.trim() : "";
+    if (!/^[0-9]{4}$/.test(v)) { this._toast("A PIN is four digits."); return; }
+    this._wbPin = v; this._wmap = null; this._sheetTrolley(true);
   },
   async _wbAdd() {
     const its = this._wbItems().filter((s) => { const m = this._wmap[normName(s.name)]; return m && !m.skip && !(this._wres[s.uid] || {}).ok; });

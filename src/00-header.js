@@ -57,6 +57,11 @@
  * stays. Open items for nights the last shop covered come back as top-ups.
  * The shop lives in input_text.meals_shop (JSON), so every screen agrees.
  *
+ * v1.29: 🛒 Trolley for everyone. Non-admin logins (Cherisha) get the button
+ * too: the sheet asks for a household PIN once, then each request goes
+ * through script.woolies_request, which checks the PIN and relays it to the
+ * Woolies Bridge add-on. Admins still talk to the add-on directly.
+ *
  * v1.26: the week's day tiles show each meal's health pill, and the week
  * heading shows the average rating of the meals planned that week. Changing an
  * ingredient's aisle in the editor now also moves it in every other meal that
