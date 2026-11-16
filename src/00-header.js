@@ -57,6 +57,12 @@
  * stays. Open items for nights the last shop covered come back as top-ups.
  * The shop lives in input_text.meals_shop (JSON), so every screen agrees.
  *
+ * v1.30: custom:woolies-trolley-card. What's in the Woolworths trolley (the
+ * Woolies Bridge add-on's saved copy on sensor.woolies_bridge, so it shows
+ * instantly), with − / + / ✕ per line, the total, the delivery slot, Refresh
+ * and a link to the trolley on the website. Quantity taps are gathered for
+ * 1.5 s and sent together, since each change runs the add-on's browser.
+ *
  * v1.29: 🛒 Trolley for everyone. Non-admin logins (Cherisha) get the button
  * too: the sheet asks for a household PIN once, then each request goes
  * through script.woolies_request, which checks the PIN and relays it to the

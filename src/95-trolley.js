@@ -1,22 +1,24 @@
 // 🛒 Woolworths trolley, part of the shopping list card (needs the Woolies Bridge add-on; non-admins need a household PIN).
 // Kept in its own file and mixed into the class, so the shopping list file stays readable.
+// The household PIN, once entered, is shared by the shopping list's trolley sheet and the trolley card until the page reloads.
+const WB = { pin: "" };
 Object.assign(ShoppingListCard.prototype, {
   _wbOn() { const h = this._hass; return !!(h && h.states["sensor.woolies_bridge"]); },
   // Admins talk to the add-on directly. Everyone else goes through script.woolies_request, which checks a
   // household PIN first (non-admins can't fire or hear the add-on's events). The PIN is kept until the page reloads.
   _wbAdmin() { const u = this._hass && this._hass.user; return !!(u && u.is_admin); },
-  _wbLocked() { return !this._wbAdmin() && !this._wbPin; },
+  _wbLocked() { return !this._wbAdmin() && !WB.pin; },
   async _wbPinCall(op, data, ms) {
     const r = await this._hass.callWS({ type: "call_service", domain: "script", service: "woolies_request",
-      service_data: { pin: this._wbPin, op, req: data, wait: Math.round(ms / 1000) }, return_response: true });
+      service_data: { pin: WB.pin, op, req: data, wait: Math.round(ms / 1000) }, return_response: true });
     const d = (r && r.response) || {};
-    if (!d.ok) { if (d.pin) this._wbPin = ""; throw new Error(d.error || "Woolies Bridge failed"); }
+    if (!d.ok) { if (d.pin) WB.pin = ""; throw new Error(d.error || "Woolies Bridge failed"); }
     return d.data;
   },
   // One request to the add-on: fire woolies_request, wait for the woolies_result with the same id.
   async _wb(op, data = {}, ms = 90000) {
     if (!this._wbAdmin()) {
-      if (!this._wbPin) throw new Error("Enter your PIN to use the trolley.");
+      if (!WB.pin) throw new Error("Enter your PIN to use the trolley.");
       return this._wbPinCall(op, data, ms);
     }
     if (!this._wbSub) {
@@ -100,7 +102,7 @@ Object.assign(ShoppingListCard.prototype, {
   _wbUnlock() {
     const i = this._ov && this._ov.querySelector("#wbpin"), v = i ? i.value.trim() : "";
     if (!/^[0-9]{4}$/.test(v)) { this._toast("A PIN is four digits."); return; }
-    this._wbPin = v; this._wmap = null; this._sheetTrolley(true);
+    WB.pin = v; this._wmap = null; this._sheetTrolley(true);
   },
   async _wbAdd() {
     const its = this._wbItems().filter((s) => { const m = this._wmap[normName(s.name)]; return m && !m.skip && !(this._wres[s.uid] || {}).ok; });
