@@ -73,6 +73,15 @@ class WooliesTrolleyCard extends MPBase {
     card.addEventListener("keydown", (e) => { if (e.target.id === "tcpin" && e.key === "Enter") this._act("unlock"); });
     this._paint();
   }
+  // The wall panel is a kiosk: no link out to a full-screen browser tab there.
+  // It is spotted by the onscreen keyboard switch or ?kiosk / ?keyboard in the
+  // address; website_link: true or false in the card config overrides that.
+  _panel() {
+    if (this._cfg.website_link === true) return false;
+    if (this._cfg.website_link === false) return true;
+    let osk = false; try { osk = localStorage.getItem("osk-enabled") === "1"; } catch (e) {}
+    return osk || /[?&](keyboard|kiosk)\b/.test(location.search);
+  }
   _cart() { const st = this._hass && this._hass.states[this._cfg.entity]; return st ? (st.attributes.cart || {}) : null; }
   _ago(iso) {
     const t = Date.parse(iso || ""); if (!t) return "";
@@ -99,7 +108,7 @@ class WooliesTrolleyCard extends MPBase {
     el.innerHTML = `<div class="hd"><span class="t">🛒 ${esc(this._cfg.title)}</span>
         <span class="s">${known ? `${shown.length} item${shown.length === 1 ? "" : "s"}${c.total_cents != null ? " · " + money(c.total_cents) : ""}` : ""}</span><span class="sp"></span>
         <button class="btn sm" data-a="refresh" ${this._busy ? "disabled" : ""} aria-label="Refresh the trolley">↻<span class="bt"> Refresh</span></button>
-        <a class="btn sm" href="https://www.woolworths.co.nz/cart" target="_blank" rel="noopener" aria-label="Open the trolley in Woolworths">↗<span class="bt"> Woolworths</span></a></div>
+        ${this._panel() ? "" : `<a class="btn sm" href="https://www.woolworths.co.nz/cart" target="_blank" rel="noopener" aria-label="Open the trolley in Woolworths">↗<span class="bt"> Woolworths</span></a>`}</div>
       ${known ? `<div class="meta">${c.has_slot ? `<span class="chip ok">🚚 ${esc(c.slot || "Delivery slot booked")}</span>` : `<span class="chip no">No delivery slot booked yet</span>`}
         <span class="mut" style="font-size:12.5px">Updated ${this._ago(c.at)}</span></div>` : ""}
       ${(c.issues || []).map((i) => `<div class="warn">${esc(i)}</div>`).join("")}

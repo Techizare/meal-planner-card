@@ -57,6 +57,10 @@
  * stays. Open items for nights the last shop covered come back as top-ups.
  * The shop lives in input_text.meals_shop (JSON), so every screen agrees.
  *
+ * v1.31: the trolley card's ↗ Woolworths link is hidden on the wall panel
+ * (onscreen keyboard on, or ?kiosk in the address), since it opened a
+ * full-screen browser tab. website_link: true/false in the config overrides.
+ *
  * v1.30: custom:woolies-trolley-card. What's in the Woolworths trolley (the
  * Woolies Bridge add-on's saved copy on sensor.woolies_bridge, so it shows
  * instantly), with − / + / ✕ per line, the total, the delivery slot, Refresh
