@@ -43,6 +43,7 @@ ha-card.xs .ln .st { grid-column:2; grid-row:1 / span 2; }
 ha-card.xs .ln .rm { grid-column:3; grid-row:1 / span 2; }
 `;
 
+const capFirst = (t) => { t = String(t || "").trim(); return t ? t[0].toUpperCase() + t.slice(1) : t; };
 const money = (c) => (c == null || isNaN(c) ? "" : "$" + (Number(c) / 100).toFixed(2));
 
 class WooliesTrolleyCard extends MPBase {
@@ -89,7 +90,7 @@ class WooliesTrolleyCard extends MPBase {
     const row = (l) => {
       const p = this._pend[l.variant], q = p != null ? p : l.qty;
       if (p === 0) return "";
-      return `<div class="ln${p != null ? " pend" : ""}"><div class="nm"><b>${esc(l.name)}</b>${l.brand ? `<span class="mut">${esc(l.brand)}</span>` : ""}</div>
+      return `<div class="ln${p != null ? " pend" : ""}"><div class="nm"><b>${esc(capFirst(l.name))}</b>${l.brand ? `<span class="mut">${esc(l.brand)}</span>` : ""}</div>
         <div class="pr">${p != null ? "…" : money(l.cents)}${l.saved && p == null ? `<small>saved ${money(l.saved)}</small>` : ""}</div>
         <div class="st"><button data-a="dec" data-v="${esc(l.variant)}" aria-label="One less ${esc(l.name)}">−</button><b>${fmtQ(l, q)}</b><button data-a="inc" data-v="${esc(l.variant)}" aria-label="One more ${esc(l.name)}">＋</button></div>
         <button class="rm" data-a="rm" data-v="${esc(l.variant)}" aria-label="Remove ${esc(l.name)}">✕</button></div>`;
