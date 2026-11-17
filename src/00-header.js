@@ -57,6 +57,11 @@
  * stays. Open items for nights the last shop covered come back as top-ups.
  * The shop lives in input_text.meals_shop (JSON), so every screen agrees.
  *
+ * v1.34: the shopping list's night chips say when, relative to today:
+ * Tonight, Tomorrow, Thu, Next Tue; earlier nights read "Last Sat" or
+ * "12 days ago" and sit under "Earlier:", the rest under "Coming up:". The
+ * hint line starts with today's date.
+ *
  * v1.33: Click & collect. The slot sheet has a Delivery / Click & collect
  * switch; pickup shows half-hour times at a chosen store (Change store lists
  * the Hamilton stores; the app remembers the pick, Claudelands to start).

@@ -74,7 +74,7 @@ class ShoppingListCard extends MPBase {
     else try { localStorage.setItem("meal-planner-shop", v); } catch (e) { /* storage off */ }
     this._paint();
   }
-  _rngTxt() { const { s, e } = this._rng || {}; return !s ? "" : s === e ? dayWord(s) : dayWord(s) + " → " + dayWord(e); }
+  _rngTxt() { const { s, e } = this._rng || {}; return !s ? "" : s === e ? nightWord(s) : nightWord(s) + " → " + nightWord(e); }
   // A share for a night the last shop covered, still open: missed, or added since. It goes on the next shop.
   _topUp(d) { const c = this._cov; return !!c && d >= today() && d >= c.f && d <= c.u && !this._sel.has(d); }
   _want(d) { return !ISO.test(d) || this._sel.has(d) || this._topUp(d); }
@@ -168,16 +168,21 @@ class ShoppingListCard extends MPBase {
     const sel = this._sel = new Set();
     for (let d = s, i = 0; d <= e && i < 60; d = addDays(d, 1), i++) sel.add(d);
     for (const d of this._past) if (d < t && ns.some((n) => n.d === d)) sel.add(d); else this._past.delete(d);
-    const chips = ns.map((n) => {
+    const pastN = ns.filter((n) => n.d < t).length;
+    const chips = ns.map((n, i) => {
       const past = n.d < t, on = sel.has(n.d), got = !on && cov && n.d >= cov.f && n.d <= cov.u;
-      const lbl = past ? "⌛ " + dayNum(n.d) + " " + monShort(n.d) : dayWord(n.d);
-      return `<span class="chip${past ? " past" : ""}${n.miss.length ? " miss" : ""}${on ? " on" : ""}${got ? " got" : ""}" data-a="night" aria-pressed="${on}" data-d="${n.d}" title="${esc(n.meals.join(", "))}">${got ? "✓ " : ""}${n.meals.map((m) => this._emojiFor(m)).join("")} ${lbl}${n.miss.length ? `<b class="mi">＋</b>` : ""}</span>`;
+      const lbl = (past ? "⌛ " : "") + nightWord(n.d);
+      const head = pastN && i === 0 ? `<span class="nl">Earlier:</span>` : pastN && i === pastN ? `<span class="nl">Coming up:</span>` : "";
+      return head + this._nightChip(n, past, on, got, lbl);
     }).join("");
     const miss = ns.some((n) => n.miss.length);
-    const last = sh.l && ISO.test(sh.l) ? `Last shop ${longDay(sh.l)}${cov ? `, got ✓ ${dayWord(cov.f)}${cov.f === cov.u ? "" : " – " + dayWord(cov.u)}` : ""}. ` : "";
+    const last = sh.l && ISO.test(sh.l) ? `Last shop ${((w) => w === "Tonight" ? "today" : w === "Last night" ? "yesterday" : /ago$/.test(w) ? w : "on " + longDay(sh.l))(nightWord(sh.l))}${cov ? `, got ✓ ${nightWord(cov.f)}${cov.f === cov.u ? "" : " – " + nightWord(cov.u)}` : ""}. ` : "";
     return `<div class="shp"><span class="t">🛒 <b>Next shop</b> · ${this._rngTxt()}</span><button class="btn sm pri" data-a="shopdone">✓ Done<span class="bt"> shopping</span></button></div>
       ${ns.length ? `<div class="nts" aria-label="Nights">${chips}</div>` : ""}
-      <div class="nh mut">${last}${ns.length ? `Tap a night to stretch the shop to it; tap its first night to leave that out${miss ? `. <b>＋</b> = ingredients not on the list yet` : ""}.` : ""}</div>`;
+      <div class="nh mut">Today is ${longDay(t)}. ${last}${ns.length ? `Tap a night to stretch the shop to it; tap its first night to leave that out.${pastN ? ` ⌛ Earlier nights still have things on the list: tap one to shop for it too.` : ""}${miss ? ` <b>＋</b> = ingredients not on the list yet.` : ""}` : ""}</div>`;
+  }
+  _nightChip(n, past, on, got, lbl) {
+    return `<span class="chip${past ? " past" : ""}${n.miss.length ? " miss" : ""}${on ? " on" : ""}${got ? " got" : ""}" data-a="night" aria-pressed="${on}" data-d="${n.d}" title="${esc(n.meals.join(", "))}">${got ? "✓ " : ""}${n.meals.map((m) => this._emojiFor(m)).join("")} ${lbl}${n.miss.length ? `<b class="mi">＋</b>` : ""}</span>`;
   }
 
   // Tapping a night: outside the shop stretches it to there, inside sets the end, the first night trims it off. Gone nights toggle for Take off.

@@ -1,4 +1,4 @@
-const MP_VERSION = "1.33";
+const MP_VERSION = "1.34";
 const P2 = (n) => String(n).padStart(2, "0");
 const DOW = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 const DOW_LONG = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
@@ -16,6 +16,18 @@ const ISO = /^\d{4}-\d{2}-\d{2}$/;
 // "Tonight", "Sat" within the coming week, otherwise "4 Nov", so a next-week Wednesday is not mistaken for this one.
 function longDay(d) { return DOW[dowIdx(d)] + " " + dayNum(d) + " " + monShort(d); }
 function dayWord(d) { const t = today(); const n = daysBetween(t, d); return n === 0 ? "Tonight" : n > 0 && n < 7 ? DOW[dowIdx(d)] : dayNum(d) + " " + monShort(d); }
+
+// Night chips on the shopping list: always relative to today, so no one needs to know the date.
+function nightWord(d) {
+  const n = daysBetween(today(), d);
+  if (n === 0) return "Tonight";
+  if (n === 1) return "Tomorrow";
+  if (n === -1) return "Last night";
+  if (n > 1 && n < 7) return DOW[dowIdx(d)];
+  if (n < 0 && n > -7) return "Last " + DOW[dowIdx(d)];
+  if (n <= -7) return `${-n} days ago`;
+  return n < 14 ? "Next " + DOW[dowIdx(d)] : DOW[dowIdx(d)] + " " + dayNum(d) + " " + monShort(d);
+}
 
 function esc(s) { return String(s == null ? "" : s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c])); }
 function hash(s) { let h = 2166136261; for (const c of String(s)) { h ^= c.codePointAt(0); h = Math.imul(h, 16777619); } return h >>> 0; }
