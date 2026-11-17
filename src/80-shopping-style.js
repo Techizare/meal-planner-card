@@ -87,6 +87,8 @@ textarea.snd { min-height:260px; font-size:14px; line-height:1.5; font-family:in
 .nts .nl { flex:none; font-size:12.5px; font-weight:700; color:var(--secondary-text-color); }
 .nts .chip { flex:none; cursor:pointer; height:32px; border:1.5px solid transparent; }
 .nts .chip.on { border-color:var(--primary-color); background:color-mix(in srgb, var(--primary-color) 18%, transparent); }
+.nts .chip.none:not(.on) { opacity:.6; }
+.nts .chip.none.on { color:var(--secondary-text-color); }
 .nts .chip.past { border:1.5px dashed #e0a030; background:color-mix(in srgb, #e0a030 14%, transparent); }
 .nts .chip.past.on { border-style:solid; }
 .nts .chip.miss:not(.on) { border:1.5px dashed var(--primary-color); }

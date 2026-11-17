@@ -1,4 +1,4 @@
-const MP_VERSION = "1.34";
+const MP_VERSION = "1.35";
 const P2 = (n) => String(n).padStart(2, "0");
 const DOW = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 const DOW_LONG = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
@@ -20,7 +20,7 @@ function dayWord(d) { const t = today(); const n = daysBetween(t, d); return n =
 // Night chips on the shopping list: always relative to today, so no one needs to know the date.
 function nightWord(d) {
   const n = daysBetween(today(), d);
-  if (n === 0) return "Tonight";
+  if (n === 0) return "Today";
   if (n === 1) return "Tomorrow";
   if (n === -1) return "Last night";
   if (n > 1 && n < 7) return DOW[dowIdx(d)];

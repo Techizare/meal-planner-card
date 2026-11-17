@@ -57,8 +57,12 @@
  * stays. Open items for nights the last shop covered come back as top-ups.
  * The shop lives in input_text.meals_shop (JSON), so every screen agrees.
  *
+ * v1.35: the next shop shows a chip for every day, today and on (scroll for
+ * three weeks or more), planned or not, and starts as today plus the next
+ * six days. Tapping the first day leaves just that day out.
+ *
  * v1.34: the shopping list's night chips say when, relative to today:
- * Tonight, Tomorrow, Thu, Next Tue; earlier nights read "Last Sat" or
+ * Today, Tomorrow, Thu, Next Tue; earlier nights read "Last Sat" or
  * "12 days ago" and sit under "Earlier:", the rest under "Coming up:". The
  * hint line starts with today's date.
  *
