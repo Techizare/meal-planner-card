@@ -2,6 +2,7 @@
 // Kept in its own file and mixed into the class, so the shopping list file stays readable.
 // The household PIN, once entered, is shared by the shopping list's trolley sheet and the trolley card until the page reloads.
 const WB = { pin: "" };
+const SHOP_NAME = { woolworths: "Woolworths", pns: "Pak'nSave", nw: "New World" };
 Object.assign(ShoppingListCard.prototype, {
   _wbOn() { const h = this._hass; return !!(h && h.states["sensor.woolies_bridge"]); },
   // Admins talk to the add-on directly. Everyone else goes through script.woolies_request, which checks a
@@ -82,7 +83,7 @@ Object.assign(ShoppingListCard.prototype, {
       this._openSheet(html, async (a, b) => {
         if (a === "close") this._closeSheet();
         else if (a === "wbunlock") this._wbUnlock();
-        else if (a === "wbpick") { const s = this._item(b.dataset.uid); if (s) this._sheetWSearch(s); }
+        else if (a === "wbpick") { const s = this._item(b.dataset.uid); if (s) { this._wsBack = "trolley"; this._sheetWSearch(s, undefined, null, "woolworths"); } }
         else if (a === "wbq") {
           const s = this._item(b.dataset.uid), mt = s && this._wmap[normName(s.name)]; if (!mt) return;
           const q = Object.assign({}, this._wq[s.uid] || this._wbQty(s, mt)), step = q.unit === "Kilogram" ? 0.1 : 1;
@@ -102,7 +103,7 @@ Object.assign(ShoppingListCard.prototype, {
   _wbUnlock() {
     const i = this._ov && this._ov.querySelector("#wbpin"), v = i ? i.value.trim() : "";
     if (!/^[0-9]{4}$/.test(v)) { this._toast("A PIN is four digits."); return; }
-    WB.pin = v; this._wmap = null; this._sheetTrolley(true);
+    WB.pin = v; if (this._sheet === "compare") this._sheetCompare(false); else { this._wmap = null; this._sheetTrolley(true); }
   },
   async _wbAdd() {
     const its = this._wbItems().filter((s) => { const m = this._wmap[normName(s.name)]; return m && !m.skip && !(this._wres[s.uid] || {}).ok; });
@@ -118,33 +119,49 @@ Object.assign(ShoppingListCard.prototype, {
     } catch (e) { this._toast(e.message); }
     this._wbusy = false; this._sheetTrolley(true);
   },
-  // Search Woolworths for one list item and remember the product picked for it.
-  _sheetWSearch(s, results, q) {
+  // Search a shop (Woolworths, or Pak'nSave as shop "pns") for one list item and remember the product picked for it.
+  // Opened from the trolley or from the price comparison; Back goes to whichever it came from.
+  _sheetWSearch(s, results, q, shop) {
+    shop = shop || this._wsShop || "woolworths"; this._wsShop = shop;
+    const fs = shop !== "woolworths", sname = SHOP_NAME[shop] || shop;
     q = q == null ? shopName(s.name) : q;
-    const mt = (this._wmap || {})[normName(s.name)];
-    const list = results === undefined ? `<p class="mut">Searching…</p>` : !results.length ? `<p class="mut">Nothing found. Try other words.</p>`
-      : `<div class="wbl">${results.map((p, i) => `<div class="wbo${mt && mt.sku === p.sku ? " on" : ""}" data-a="wbset" data-k="${i}"><div><b>${esc(p.name)}</b>${p.brand ? ` <span class="mut">${esc(p.brand)}</span>` : ""}<div class="mut" style="font-size:12.5px">${esc(p.size || "")}${p.supports_dual_pricing ? " · sold by weight or each" : ""}${p.in_stock === false ? " · out of stock" : ""}</div></div>
-          <div class="wbpr">${p.is_special && p.sale_price ? `<b class="sp2">$${Number(p.sale_price).toFixed(2)}</b>` : `$${Number(p.price || 0).toFixed(2)}`}</div></div>`).join("")}</div>`;
+    const map = this._smap(shop) || {}, mt = map[normName(s.name)];
+    const pr = (p) => { const sp = p.is_special && p.sale_price, t = `$${Number(sp ? p.sale_price : p.price || 0).toFixed(2)}${p.per_kg ? "/kg" : ""}`; return sp ? `<b class="sp2">${t}</b>` : t; };
+    const sub = (p) => [p.per_kg ? "sold by weight" : p.size, p.supports_dual_pricing ? "sold by weight or each" : "",
+      p.unit_price && !p.per_kg && p.unit ? `$${Number(p.unit_price).toFixed(2)}/${p.unit}` : "", p.in_stock === false ? "out of stock" : ""].filter(Boolean).join(" · ");
+    const list = results === undefined ? `<p class="mut">Searching ${esc(sname)}…</p>` : !results.length ? `<p class="mut">Nothing found. Try other words.</p>`
+      : `<div class="wbl">${results.map((p, i) => `<div class="wbo${mt && mt.sku === p.sku ? " on" : ""}" data-a="wbset" data-k="${i}"><div><b>${esc(p.name)}</b>${p.brand ? ` <span class="mut">${esc(p.brand)}</span>` : ""}<div class="mut" style="font-size:12.5px">${esc(sub(p))}</div></div>
+          <div class="wbpr">${pr(p)}</div></div>`).join("")}</div>`;
     const html = `<div class="pad"><h2>${esc(s.name)} <span class="mut" style="font-weight:500;font-size:15px">${esc(this._tot(s) || "")}</span></h2>
+      <div class="mut" style="font-size:13px;margin-top:2px">${esc(sname)}${mt && mt.guess ? " · this was a first guess: pick the right one, or tap Looks right" : ""}</div>
       <div class="sta" style="margin:8px 0 12px"><input class="i" id="wbq" value="${esc(q)}" enterkeyhint="search" autocomplete="off"><button class="btn pri" data-a="wbgo">🔎 Search</button></div>
       ${list}</div>
       <div class="foot"><button class="btn" data-a="back">‹ Back</button><span class="sp"></span>
-        ${mt ? `<button class="btn" data-a="wbforget">Forget match</button>` : ""}<button class="btn" data-a="wbskip">Don't buy online</button></div>`;
+        ${mt && mt.guess ? `<button class="btn pri" data-a="wbok">✓ Looks right</button>` : ""}${mt ? `<button class="btn" data-a="wbforget">Forget match</button>` : ""}<button class="btn" data-a="wbskip">Don't buy ${fs ? "there" : "online"}</button></div>`;
     const go = async (text) => {
-      this._sheetWSearch(s, undefined, text);
-      try { const r = await this._wb("search", { q: text, limit: 20 }, 120000); if (this._sheet === "wsearch") this._sheetWSearch(s, r, text); }
-      catch (e) { this._toast(e.message); if (this._sheet === "wsearch") this._sheetWSearch(s, [], text); }
+      this._sheetWSearch(s, undefined, text, shop);
+      try {
+        const r = fs ? await this._wb("fs_search", { shop, q: text, limit: 20 }, 60000) : await this._wb("search", { q: text, limit: 20 }, 120000);
+        if (this._sheet === "wsearch") this._sheetWSearch(s, r, text, shop);
+      } catch (e) { this._toast(e.message); if (this._sheet === "wsearch") this._sheetWSearch(s, [], text, shop); }
     };
+    const back = () => { this._closeSheet(); if (this._wsBack === "compare") this._sheetCompare(true); else this._sheetTrolley(true); };
     const save = async (match) => {
       const key = normName(s.name);
-      try { await this._wb("map_set", { key, match }, 30000); } catch (e) { this._toast(e.message); return; }
-      if (match) this._wmap[key] = match; else delete this._wmap[key];
-      delete this._wq[s.uid]; this._closeSheet(); this._sheetTrolley(true);
+      try { await this._wb("map_set", { shop, key, match }, 30000); } catch (e) { this._toast(e.message); return; }
+      if (match) map[key] = match; else delete map[key];
+      if (shop === "woolworths") delete this._wq[s.uid];
+      back();
     };
     const ov = this._openSheet(html, async (a, b) => {
-      if (a === "back") { this._closeSheet(); this._sheetTrolley(true); }
+      if (a === "back") back();
       else if (a === "wbgo") { const v = ov.querySelector("#wbq").value.trim(); if (v) go(v); }
-      else if (a === "wbset") { const p = results[Number(b.dataset.k)]; if (p) save({ sku: p.sku, name: p.name, brand: p.brand || "", size: p.size || "", price: p.is_special && p.sale_price ? p.sale_price : p.price, dual: !!p.supports_dual_pricing }); }
+      else if (a === "wbset") {
+        const p = results[Number(b.dataset.k)]; if (!p) return;
+        const m = { sku: p.sku, name: p.name, brand: p.brand || "", size: p.size || "", price: p.is_special && p.sale_price ? p.sale_price : p.price, dual: !!p.supports_dual_pricing, at: today() };
+        if (fs) Object.assign(m, { per_kg: !!p.per_kg, avg_g: p.avg_g || null, unit_price: p.unit_price || null, unit: p.unit || "" });
+        save(m);
+      } else if (a === "wbok" && mt) { const m = Object.assign({}, mt); delete m.guess; save(m); }
       else if (a === "wbskip") save({ skip: true });
       else if (a === "wbforget") save(null);
     });
@@ -152,5 +169,4 @@ Object.assign(ShoppingListCard.prototype, {
     this._sheet = "wsearch";
     if (results === undefined && q && !this._wbSearching) { this._wbSearching = true; go(q).finally(() => { this._wbSearching = false; }); }
   }
-
 });

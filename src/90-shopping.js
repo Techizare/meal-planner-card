@@ -98,7 +98,7 @@ class ShoppingListCard extends MPBase {
       ${!this._err && this._f.hass && this._hass.states[this._cfg.entity] && !this._f.canDescribe() ? `<div class="warn">This list can’t store quantities or aisles, so everything lands in Other. A Local To-do list can.</div>` : ""}
       <div class="top"><div class="big">${open.length}</div><div class="lbl"><b style="color:var(--primary-text-color);font-size:15px">${esc(this._cfg.title)}</b><br>
         ${open.length ? `to get${meals.size ? ` · for ${meals.size} meal${meals.size === 1 ? "" : "s"}` : ""}${extras ? ` · ${extras} extra${extras === 1 ? "" : "s"}` : ""}` : "nothing to get"}</div>
-        <span class="sp"></span>${open.length && this._wbOn() ? `<button class="btn sm" data-a="trolley" aria-label="Fill the Woolworths trolley">🛒<span class="bt"> Trolley</span></button>` : ""}${open.length ? `<button class="btn sm" data-a="send" aria-label="Send the list">📤<span class="bt"> Send</span></button>` : ""}${done.length ? `<button class="btn sm" data-a="clear">Clear ${done.length}<span class="bt"> ticked</span></button>` : ""}</div>
+        <span class="sp"></span>${open.length && this._wbOn() ? `<button class="btn sm" data-a="trolley" aria-label="Fill the Woolworths trolley">🛒<span class="bt"> Trolley</span></button><button class="btn sm" data-a="compare" aria-label="Compare prices with Pak'nSave">⚖️<span class="bt"> Compare</span></button>` : ""}${open.length ? `<button class="btn sm" data-a="send" aria-label="Send the list">📤<span class="bt"> Send</span></button>` : ""}${done.length ? `<button class="btn sm" data-a="clear">Clear ${done.length}<span class="bt"> ticked</span></button>` : ""}</div>
       <div class="bar"><i style="width:${pct}%"></i></div>${nightsHtml}`;
     const nts = top.querySelector(".nts"); if (nts) nts.addEventListener("scroll", () => this._edges(nts), { passive: true });
     const have = new Set(all.map((s) => normName(s.name)));
@@ -382,6 +382,7 @@ class ShoppingListCard extends MPBase {
     else if (a === "qkedit") this._sheetStaples();
     else if (a === "send") this._sheetSend();
     else if (a === "trolley") this._sheetTrolley();
+    else if (a === "compare") this._sheetCompare();
     else if (a === "night") this._tapNight(b.dataset.d);
     else if (a === "shopdone") this._sheetDone();
     else if (a === "srl" || a === "srr") this._rowScroll(b, a === "srr" ? 1 : -1);

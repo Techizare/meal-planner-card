@@ -1,4 +1,24 @@
 const SL_STYLE = BASE + `
+.cstp { display:flex; align-items:center; justify-content:space-between; gap:8px; margin:4px 0 10px; font-size:14.5px; }
+.cstl { display:grid; grid-template-columns:repeat(auto-fill, minmax(200px, 1fr)); gap:8px; margin-bottom:12px; }
+.cstl button { border-radius:14px; border:1.5px solid var(--divider-color, rgba(127,127,127,.35)); background:none; color:var(--primary-text-color, inherit); font:inherit; cursor:pointer; text-align:left; padding:10px 12px; }
+.cstl button b { display:block; font-size:15px; } .cstl button span { font-size:12.5px; }
+.cstl button.on { border-color:var(--primary-color, #03a9f4); background:color-mix(in srgb, var(--primary-color, #03a9f4) 14%, transparent); }
+.cmt { padding:12px 14px; border-radius:14px; background:color-mix(in srgb, var(--primary-text-color, #888) 6%, transparent); margin-bottom:10px; }
+.cmb { font-size:19px; margin-bottom:4px; } .cmb b { font-weight:800; }
+.cmh { display:flex; gap:16px; flex-wrap:wrap; font-size:14.5px; } .cmx { font-size:12.5px; margin-top:4px; }
+.cma { display:flex; gap:8px; align-items:center; flex-wrap:wrap; margin-bottom:10px; font-size:13px; }
+.cmr { padding:8px 0; border-bottom:1px solid var(--divider-color, rgba(127,127,127,.25)); }
+.cmn { font-size:14.5px; margin-bottom:6px; }
+.cmg { display:grid; grid-template-columns:1fr 1fr; gap:8px; }
+.cmcol { font-size:12px; font-weight:700; text-transform:uppercase; letter-spacing:.5px; color:var(--secondary-text-color, #777); padding-bottom:4px; border-bottom:1px solid var(--divider-color, rgba(127,127,127,.25)); }
+.cc { display:flex; flex-direction:column; gap:4px; min-width:0; text-align:left; font:inherit; font-size:13px; color:var(--primary-text-color, inherit); background:none; border:1.5px solid var(--divider-color, rgba(127,127,127,.35)); border-radius:12px; padding:8px 10px; cursor:pointer; }
+.cc.none { align-items:center; justify-content:center; color:var(--primary-color, #03a9f4); font-weight:600; min-height:52px; }
+.cc.win { border-color:#43a047; background:color-mix(in srgb, #43a047 12%, transparent); }
+.cc.guess { border-style:dashed; } .cc.gone { opacity:.6; }
+.cc .cn { display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden; line-height:1.3; }
+.cc .cq { display:flex; justify-content:space-between; align-items:baseline; gap:6px; font-size:12px; }
+.cc .cq b { font-size:15px; white-space:nowrap; } .cc.win .cq b { color:#43a047; }
 .wbr { padding:10px 0; border-bottom:1px solid var(--divider-color); }
 .wbr.skip { opacity:.55; }
 .wbt { font-size:14.5px; }

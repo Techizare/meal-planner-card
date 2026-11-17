@@ -57,6 +57,12 @@
  * stays. Open items for nights the last shop covered come back as top-ups.
  * The shop lives in input_text.meals_shop (JSON), so every screen agrees.
  *
+ * v1.36: ⚖️ Compare on the shopping list prices the next shop at Woolworths
+ * and Pak'nSave side by side (needs Woolies Bridge 0.3.2). Each shop keeps its
+ * own product matches; "Guess the other N" fills Pak'nSave guesses (dashed
+ * until checked), "Today's prices" re-prices both, and the cheaper line and
+ * the total difference are shown. The product search sheet takes a shop.
+ *
  * v1.35: the next shop shows a chip for every day, today and on (scroll for
  * three weeks or more), planned or not, and starts as today plus the next
  * six days. Tapping the first day leaves just that day out.
