@@ -36,7 +36,7 @@ Object.assign(ShoppingListCard.prototype, {
     await this._hass.callWS({ type: "fire_event", event_type: "woolies_request", event_data: Object.assign({ id, op }, data) });
     return p;
   },
-  _wbItems() { return (this._items || []).filter((s) => (!s.done || (this._wres || {})[s.uid]) && !isGhost(s) && this._inSel(s)).sort((a, b) => this._aisles.indexOf(this._aisle(a.aisle)) - this._aisles.indexOf(this._aisle(b.aisle)) || a.name.localeCompare(b.name)); },
+  _wbItems() { return (this._items || []).filter((s) => (!s.done || (this._tres_woolworths || {})[s.uid] || (this._tres_pns || {})[s.uid]) && !isGhost(s) && this._inSel(s)).sort((a, b) => this._aisles.indexOf(this._aisle(a.aisle)) - this._aisles.indexOf(this._aisle(b.aisle)) || a.name.localeCompare(b.name)); },
   // How many to put in the trolley: counts stay counts; grams and millilitres are worked out from the pack size;
   // loose produce sold by weight goes in by the kilo.
   _wbQty(s, mt) {
@@ -50,30 +50,46 @@ Object.assign(ShoppingListCard.prototype, {
     }
     return { qty: 1, unit: "Each" };
   },
-  _wbRow(s) {
-    const k = normName(s.name), mt = (this._wmap || {})[k], q = this._wq[s.uid] || (mt && !mt.skip ? this._wbQty(s, mt) : null);
-    const st = this._wres[s.uid];
+  // The trolley sheet fills one shop at a time (Woolworths or Pak'nSave, switched at the top). Each shop has its
+  // own product matches, quantity tweaks (_tq) and results (_tres), so switching back and forth loses nothing.
+  _tShop() { return this._tshop || "woolworths"; },
+  _tq(shop) { const k = "_tq_" + (shop || this._tShop()); return (this[k] = this[k] || {}); },
+  _tres(shop) { const k = "_tres_" + (shop || this._tShop()); return (this[k] = this[k] || {}); },
+  _tQty(s, mt, shop) {
+    if (shop !== "woolworths" && mt.per_kg) { const lc = this._lineCost(s, Object.assign({}, mt, { price: mt.price || 1 }), shop); return { qty: lc.qty, unit: "Kilogram" }; }
+    return this._wbQty(s, mt);
+  },
+  _wbRow(s, shop) {
+    const k = normName(s.name), mt = (this._smap(shop) || {})[k], q = this._tq(shop)[s.uid] || (mt && !mt.skip ? this._tQty(s, mt, shop) : null);
+    const st = this._tres(shop)[s.uid];
     return `<div class="wbr${mt && mt.skip ? " skip" : ""}"><div class="wbt"><b>${esc(s.name)}</b> <span class="mut">${esc(this._tot(s) || "")}</span>
         ${st ? `<span class="wbs ${st.ok ? "ok" : "bad"}">${st.ok ? "✓ in trolley" : "⚠️ " + esc(st.error)}</span>` : ""}</div>
       <div class="wbm">${!mt ? `<button class="btn sm pri" data-a="wbpick" data-uid="${esc(s.uid)}">🔎 Choose product</button>`
-        : mt.skip ? `<span class="mut">Not buying online</span><button class="btn sm" data-a="wbpick" data-uid="${esc(s.uid)}">Choose product</button>`
-        : `<span class="wbp" data-a="wbpick" data-uid="${esc(s.uid)}" title="Tap to change">${esc(mt.name)}${mt.size ? ` <span class="mut">${esc(mt.size)}</span>` : ""}${mt.price ? ` <span class="mut">$${Number(mt.price).toFixed(2)}</span>` : ""}</span>
+        : mt.skip ? `<span class="mut">Not buying ${shop === "woolworths" ? "online" : "here"}</span><button class="btn sm" data-a="wbpick" data-uid="${esc(s.uid)}">Choose product</button>`
+        : `<span class="wbp${mt.guess ? " guess" : ""}" data-a="wbpick" data-uid="${esc(s.uid)}" title="Tap to change">${mt.guess ? "❓ " : ""}${esc(mt.name)}${mt.size && !mt.per_kg ? ` <span class="mut">${esc(mt.size)}</span>` : ""}${mt.price ? ` <span class="mut">$${Number(mt.price).toFixed(2)}${mt.per_kg ? "/kg" : ""}</span>` : ""}</span>
           <span class="svs wq"><button data-a="wbq" data-uid="${esc(s.uid)}" data-k="-1" aria-label="Fewer">−</button><b>${q.unit === "Kilogram" ? q.qty + " kg" : q.qty}</b><button data-a="wbq" data-uid="${esc(s.uid)}" data-k="1" aria-label="More">+</button></span>`}</div></div>`;
   },
+  _tReady(shop) {
+    const map = this._smap(shop);
+    return map ? this._wbItems().filter((s) => { const m = map[normName(s.name)]; return m && !m.skip && !m.guess && !(this._tres(shop)[s.uid] || {}).ok; }) : [];
+  },
   async _sheetTrolley(refresh) {
-    this._wq = this._wq || {}; this._wres = this._wres || {};
-    if (!refresh) { this._wmap = null; this._wres = {}; }
-    const its = this._wbItems();
+    const shop = this._tShop(), sname = SHOP_NAME[shop], pns = shop !== "woolworths";
+    this._wq = this._tq("woolworths"); this._wres = this._tres("woolworths");
+    if (!refresh) { this._wmap = null; this._setSmap("pns", null); this["_tres_woolworths"] = {}; this["_tres_pns"] = {}; this._wres = this._tres("woolworths"); }
+    const map = this._smap(shop), its = this._wbItems();
     const sen = this._hass.states["sensor.woolies_bridge"] || { state: "unknown", attributes: {} };
-    const ready = (this._wmap ? its.filter((s) => { const m = this._wmap[normName(s.name)]; return m && !m.skip && !(this._wres[s.uid] || {}).ok; }) : []);
-    const todo = this._wmap ? its.filter((s) => !this._wmap[normName(s.name)]).length : 0;
+    const ready = this._tReady(shop);
+    const todo = map ? its.filter((s) => !map[normName(s.name)]).length : 0, guesses = map ? its.filter((s) => (map[normName(s.name)] || {}).guess).length : 0;
     const body = this._wbLocked() ? `<div class="wbpin"><p class="mut">Enter your household PIN to use the trolley.</p>
         <div class="wbpr"><input class="i" id="wbpin" type="password" inputmode="numeric" maxlength="4" autocomplete="off" placeholder="PIN">
-        <button class="btn pri" data-a="wbunlock">Unlock</button></div></div>` : !this._wmap ? `<p class="mut">Loading your product matches…</p>` : !its.length ? `<p class="mut">Nothing on the next shop.</p>` : its.map((s) => this._wbRow(s)).join("");
-    const html = `<div class="pad"><h2>🛒 Fill the Woolworths trolley</h2>
-      <p class="mut" style="margin:6px 0 10px;font-size:13px">Pick the product for each item once and it's remembered. Then one tap adds them all. Book a delivery slot on the trolley card, then check out in the Woolworths app.
+        <button class="btn pri" data-a="wbunlock">Unlock</button></div></div>` : !map ? `<p class="mut">Loading your product matches…</p>` : !its.length ? `<p class="mut">Nothing on the next shop.</p>` : its.map((s) => this._wbRow(s, shop)).join("");
+    const seg = `<div class="tseg" role="tablist">${["woolworths", "pns"].map((x) => `<button role="tab" aria-selected="${x === shop}" class="${x === shop ? "on" : ""}" data-a="tshop" data-k="${x}">${esc(SHOP_NAME[x])}</button>`).join("")}</div>`;
+    const html = `<div class="pad"><h2>🛒 Fill the ${esc(sname)} trolley</h2>${seg}
+      <p class="mut" style="margin:6px 0 10px;font-size:13px">Pick the product for each item once and it's remembered. Then one tap adds them all.
+      ${pns ? "Then pick a Click &amp; collect time and pay in the Pak'nSave app." : "Book a delivery slot on the trolley card, then check out in the Woolworths app."}
       ${sen.state === "error" || sen.state === "signed_out" ? `<br><span class="noi">⚠️ ${esc(sen.attributes.last_error || "Woolies Bridge needs attention.")}</span>` : ""}</p>
-      ${todo ? `<div class="nh mut" style="margin:0 0 8px">${todo} item${todo === 1 ? "" : "s"} still to match.</div>` : ""}
+      ${todo || guesses ? `<div class="nh mut" style="margin:0 0 8px">${[todo ? `${todo} item${todo === 1 ? "" : "s"} still to match` : "", guesses ? `${guesses} guess${guesses === 1 ? "" : "es"} (❓) to check first` : ""].filter(Boolean).join(" · ")}.</div>` : ""}
       <div id="wbrows">${body}</div></div>
       <div class="foot"><button class="btn" data-a="close">Close</button><span class="sp"></span>
         <label class="wbk"><input type="checkbox" id="wbtick" ${this._wtick === false ? "" : "checked"}> Tick off</label>
@@ -81,13 +97,15 @@ Object.assign(ShoppingListCard.prototype, {
     if (refresh && this._ov && this._sheet === "trolley") { const sh = this._ov.querySelector(".sh"), y = sh.scrollTop; sh.innerHTML = html; sh.scrollTop = y; }
     else {
       this._openSheet(html, async (a, b) => {
+        const shop = this._tShop();
         if (a === "close") this._closeSheet();
         else if (a === "wbunlock") this._wbUnlock();
-        else if (a === "wbpick") { const s = this._item(b.dataset.uid); if (s) { this._wsBack = "trolley"; this._sheetWSearch(s, undefined, null, "woolworths"); } }
+        else if (a === "tshop") { if (!this._wbusy) { this._tshop = b.dataset.k; this._sheetTrolley(true); } }
+        else if (a === "wbpick") { const s = this._item(b.dataset.uid); if (s) { this._wsBack = "trolley"; this._sheetWSearch(s, undefined, null, shop); } }
         else if (a === "wbq") {
-          const s = this._item(b.dataset.uid), mt = s && this._wmap[normName(s.name)]; if (!mt) return;
-          const q = Object.assign({}, this._wq[s.uid] || this._wbQty(s, mt)), step = q.unit === "Kilogram" ? 0.1 : 1;
-          q.qty = Math.max(step, Math.round((q.qty + step * Number(b.dataset.k)) * 10) / 10); this._wq[s.uid] = q; this._sheetTrolley(true);
+          const s = this._item(b.dataset.uid), mt = s && (this._smap(shop) || {})[normName(s.name)]; if (!mt) return;
+          const tq = this._tq(shop), q = Object.assign({}, tq[s.uid] || this._tQty(s, mt, shop)), step = q.unit === "Kilogram" ? 0.1 : 1;
+          q.qty = Math.max(step, Math.round((q.qty + step * Number(b.dataset.k)) * 10) / 10); tq[s.uid] = q; this._sheetTrolley(true);
         } else if (a === "wbadd") this._wbAdd();
       });
       this._ov.addEventListener("change", (e) => { if (e.target.id === "wbtick") this._wtick = e.target.checked; });
@@ -95,27 +113,31 @@ Object.assign(ShoppingListCard.prototype, {
       this._sheet = "trolley";
     }
     if (this._wbLocked()) { const i = this._ov && this._ov.querySelector("#wbpin"); if (i) i.focus(); return; }
-    if (!this._wmap) {
-      try { this._wmap = await this._wb("map_get", {}, 30000); } catch (e) { if (!this._wbLocked()) this._wmap = {}; this._toast(e.message); }
+    if (!map) {
+      try { this._setSmap(shop, await this._wb("map_get", pns ? { shop } : {}, 30000)); } catch (e) { if (!this._wbLocked()) this._setSmap(shop, {}); this._toast(e.message); }
       if (this._sheet === "trolley") this._sheetTrolley(true);
     }
   },
   _wbUnlock() {
     const i = this._ov && this._ov.querySelector("#wbpin"), v = i ? i.value.trim() : "";
     if (!/^[0-9]{4}$/.test(v)) { this._toast("A PIN is four digits."); return; }
-    WB.pin = v; if (this._sheet === "compare") this._sheetCompare(false); else { this._wmap = null; this._sheetTrolley(true); }
+    WB.pin = v; if (this._sheet === "compare") this._sheetCompare(false); else { this._wmap = null; this._setSmap("pns", null); this._sheetTrolley(true); }
   },
   async _wbAdd() {
-    const its = this._wbItems().filter((s) => { const m = this._wmap[normName(s.name)]; return m && !m.skip && !(this._wres[s.uid] || {}).ok; });
+    const shop = this._tShop(), map = this._smap(shop) || {}, its = this._tReady(shop), res = this._tres(shop), tq = this._tq(shop);
     if (!its.length || this._wbusy) return;
     this._wbusy = true; this._sheetTrolley(true);
-    const items = its.map((s) => { const mt = this._wmap[normName(s.name)], q = this._wq[s.uid] || this._wbQty(s, mt); return { ref: s.uid, sku: mt.sku, qty: q.qty, unit: q.unit, name: s.name }; });
+    const items = its.map((s) => {
+      const mt = map[normName(s.name)], q = tq[s.uid] || this._tQty(s, mt, shop);
+      return shop === "woolworths" ? { ref: s.uid, sku: mt.sku, qty: q.qty, unit: q.unit, name: s.name }
+        : { ref: s.uid, sku: mt.sku, qty: q.qty, sale_type: q.unit === "Kilogram" ? "WEIGHT" : "UNITS", name: s.name };
+    });
     try {
-      const r = await this._wb("add", { items }, 60000 + items.length * 15000);
-      for (const u of r.added || []) this._wres[u] = { ok: true };
-      for (const f of r.failed || []) this._wres[f.ref] = { ok: false, error: f.error };
+      const r = await this._wb(shop === "woolworths" ? "add" : "pns_add", { items }, 60000 + items.length * (shop === "woolworths" ? 15000 : 2000));
+      for (const u of r.added || []) res[u] = { ok: true };
+      for (const f of r.failed || []) res[f.ref] = { ok: false, error: f.error };
       if (this._wtick !== false) for (const u of r.added || []) this._f.call("update_item", { item: u, status: "completed" }).catch(() => {});
-      this._toast(`🛒 ${(r.added || []).length} added to the trolley` + ((r.failed || []).length ? ` · ${r.failed.length} didn't go in` : ""));
+      this._toast(`🛒 ${(r.added || []).length} added to the ${SHOP_NAME[shop]} trolley` + ((r.failed || []).length ? ` · ${r.failed.length} didn't go in` : ""));
     } catch (e) { this._toast(e.message); }
     this._wbusy = false; this._sheetTrolley(true);
   },
@@ -150,7 +172,7 @@ Object.assign(ShoppingListCard.prototype, {
       const key = normName(s.name);
       try { await this._wb("map_set", { shop, key, match }, 30000); } catch (e) { this._toast(e.message); return; }
       if (match) map[key] = match; else delete map[key];
-      if (shop === "woolworths") delete this._wq[s.uid];
+      delete this._tq(shop)[s.uid];
       back();
     };
     const ov = this._openSheet(html, async (a, b) => {

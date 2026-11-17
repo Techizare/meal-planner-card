@@ -1,4 +1,8 @@
 const SL_STYLE = BASE + `
+.tseg { display:flex; gap:4px; padding:4px; border-radius:999px; background:color-mix(in srgb, var(--primary-text-color, #888) 7%, transparent); margin:8px 0 2px; width:max-content; max-width:100%; }
+.tseg button { border:none; background:none; color:var(--primary-text-color, inherit); font:inherit; font-size:14px; font-weight:600; padding:8px 16px; border-radius:999px; cursor:pointer; }
+.tseg button.on { background:var(--card-background-color, #fff); box-shadow:0 1px 3px rgba(0,0,0,.2); }
+.wbp.guess { text-decoration-style:dashed; }
 .cstp { display:flex; align-items:center; justify-content:space-between; gap:8px; margin:4px 0 10px; font-size:14.5px; }
 .cstl { display:grid; grid-template-columns:repeat(auto-fill, minmax(200px, 1fr)); gap:8px; margin-bottom:12px; }
 .cstl button { border-radius:14px; border:1.5px solid var(--divider-color, rgba(127,127,127,.35)); background:none; color:var(--primary-text-color, inherit); font:inherit; cursor:pointer; text-align:left; padding:10px 12px; }

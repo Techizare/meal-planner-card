@@ -57,6 +57,11 @@
  * stays. Open items for nights the last shop covered come back as top-ups.
  * The shop lives in input_text.meals_shop (JSON), so every screen agrees.
  *
+ * v1.37: the 🛒 trolley sheet fills Woolworths or Pak'nSave (switch at the
+ * top; Pak'nSave guesses must be checked first), and the trolley card takes
+ * shop: pns to show the Pak'nSave trolley (needs Woolies Bridge 0.3.6 and a
+ * Pak'nSave login in its Configuration).
+ *
  * v1.36: ⚖️ Compare on the shopping list prices the next shop at Woolworths
  * and Pak'nSave side by side (needs Woolies Bridge 0.3.2). Each shop keeps its
  * own product matches; "Guess the other N" fills Pak'nSave guesses (dashed

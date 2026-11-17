@@ -71,7 +71,10 @@ const money = (c) => (c == null || isNaN(c) ? "" : "$" + (Number(c) / 100).toFix
 
 class WooliesTrolleyCard extends MPBase {
   setConfig(config) {
-    this._cfg = Object.assign({ title: "Woolworths trolley", entity: "sensor.woolies_bridge" }, config || {});
+    // shop: woolworths (default) or pns for the Pak'nSave trolley (attribute pns_cart, no slot booking yet).
+    const shop = (config && config.shop) === "pns" ? "pns" : "woolworths";
+    this._cfg = Object.assign({ title: shop === "pns" ? "Pak'nSave trolley" : "Woolworths trolley", entity: "sensor.woolies_bridge" }, config || {}, { shop });
+    this._pns = shop === "pns"; this._attr = this._pns ? "pns_cart" : "cart";
     this._pend = {}; this._busy = false;
   }
   getCardSize() { return 6; }
@@ -84,7 +87,7 @@ class WooliesTrolleyCard extends MPBase {
   }
   set hass(h) {
     super.hass = h;
-    const st = h.states[this._cfg.entity], key = st ? st.state + "|" + JSON.stringify(st.attributes.cart || null) : "none";
+    const st = h.states[this._cfg.entity], key = st ? st.state + "|" + JSON.stringify(st.attributes[this._attr] || null) : "none";
     if (key !== this._key) { this._key = key; this._paint(); }
   }
   _build() {
@@ -105,7 +108,7 @@ class WooliesTrolleyCard extends MPBase {
     let osk = false; try { osk = localStorage.getItem("osk-enabled") === "1"; } catch (e) {}
     return osk || /[?&](keyboard|kiosk)\b/.test(location.search);
   }
-  _cart() { const st = this._hass && this._hass.states[this._cfg.entity]; return st ? (st.attributes.cart || {}) : null; }
+  _cart() { const st = this._hass && this._hass.states[this._cfg.entity]; return st ? (st.attributes[this._attr] || {}) : null; }
   _ago(iso) {
     const t = Date.parse(iso || ""); if (!t) return "";
     const m = Math.round((Date.now() - t) / 60000);
@@ -131,11 +134,12 @@ class WooliesTrolleyCard extends MPBase {
     el.innerHTML = `<div class="hd"><span class="t">🛒 ${esc(this._cfg.title)}</span>
         <span class="s">${known ? `${shown.length} item${shown.length === 1 ? "" : "s"}${c.total_cents != null ? " · " + money(c.total_cents) : ""}` : ""}</span><span class="sp"></span>
         <button class="btn sm" data-a="refresh" ${this._busy ? "disabled" : ""} aria-label="Refresh the trolley">↻<span class="bt"> Refresh</span></button>
-        ${this._panel() ? "" : `<a class="btn sm" href="https://www.woolworths.co.nz/cart" target="_blank" rel="noopener" aria-label="Open the trolley in Woolworths">↗<span class="bt"> Woolworths</span></a>`}</div>
-      ${known ? `<div class="meta">${c.has_slot ? `<button class="chip ok" data-a="slots" aria-label="Change the slot">${(c.slot_info || {}).method === "pickup" ? "🛍️" : "🚚"} ${esc(this._slotText(c))} · Change</button>` : `<button class="chip no" data-a="slots">🚚 Book a delivery or pickup slot</button>`}
+        ${this._panel() ? "" : this._pns ? `<a class="btn sm" href="https://www.paknsave.co.nz/shop/shopping-cart" target="_blank" rel="noopener" aria-label="Open the trolley in Pak'nSave">↗<span class="bt"> Pak'nSave</span></a>` : `<a class="btn sm" href="https://www.woolworths.co.nz/cart" target="_blank" rel="noopener" aria-label="Open the trolley in Woolworths">↗<span class="bt"> Woolworths</span></a>`}</div>
+      ${known && this._pns ? `<div class="meta">${c.store ? `<span class="chip">🛍️ ${esc(String(c.store).replace(/^PAK'nSAVE\s*/i, ""))}</span>` : ""}<span class="mut" style="font-size:12.5px">Pick a Click &amp; collect time when you pay in the Pak'nSave app · Updated ${this._ago(c.at)}</span></div>`
+      : known ? `<div class="meta">${c.has_slot ? `<button class="chip ok" data-a="slots" aria-label="Change the slot">${(c.slot_info || {}).method === "pickup" ? "🛍️" : "🚚"} ${esc(this._slotText(c))} · Change</button>` : `<button class="chip no" data-a="slots">🚚 Book a delivery or pickup slot</button>`}
         <span class="mut" style="font-size:12.5px">Updated ${this._ago(c.at)}</span></div>` : ""}
       ${(c.issues || []).map((i) => `<div class="warn">${esc(i)}</div>`).join("")}
-      ${this._busy ? `<div class="busy"><i></i>Talking to Woolworths… about 15 seconds</div>` : ""}
+      ${this._busy ? `<div class="busy"><i></i>Talking to ${this._pns ? "Pak'nSave" : "Woolworths"}… about 15 seconds</div>` : ""}
       ${locked && this._needPin ? `<div class="pinr"><span class="mut">Enter your household PIN to change the trolley.</span>
         <input class="i" id="tcpin" type="password" inputmode="numeric" maxlength="4" autocomplete="off" placeholder="PIN"><button class="btn pri" data-a="unlock">Unlock</button></div>` : ""}
       ${!known ? `<div class="empty"><div class="e">🛒</div><p>Not read yet. Tap Refresh to load the trolley.</p></div>`
@@ -248,7 +252,7 @@ class WooliesTrolleyCard extends MPBase {
   }
   _line(v) { return ((this._cart() || {}).lines || []).find((l) => l.variant === v); }
   _act(a, b) {
-    if (a === "refresh") return this._run(() => this._wb("cart", {}, 120000));
+    if (a === "refresh") return this._run(() => this._wb(this._pns ? "pns_cart" : "cart", {}, 120000));
     if (a === "slots") return this._sheetSlots();
     if (a === "unlock") {
       const i = this.shadowRoot.getElementById("tcpin"), v = i ? i.value.trim() : "";
@@ -268,7 +272,9 @@ class WooliesTrolleyCard extends MPBase {
     if (!changes.length) return;
     if (this._busy) { clearTimeout(this._pt); this._pt = setTimeout(() => this._flush(), 1500); return; }
     this._run(async () => {
-      const r = await this._wb("cart_set", { changes }, 180000);
+      const r = this._pns
+        ? await this._wb("pns_add", { items: changes.map((ch) => { const l = this._line(ch.variant) || {}; return { ref: ch.variant, sku: ch.variant, qty: ch.qty, sale_type: l.kg ? "WEIGHT" : "UNITS" }; }) }, 120000)
+        : await this._wb("cart_set", { changes }, 180000);
       const f = (r && r.failed) || [];
       if (f.length) this._toast(`${f.length} change${f.length === 1 ? "" : "s"} didn't go through: ${f[0].error}`);
       return r;
