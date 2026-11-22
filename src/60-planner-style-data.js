@@ -152,7 +152,7 @@ const PL_STYLE = BASE + `
 .emoc { display:flex; gap:8px; align-items:center; margin-top:8px; font-size:13px; }
 .emoc input.i { width:110px; height:38px; font-size:20px; text-align:center; }
 .emo button.on { border-color:var(--primary-color); background:color-mix(in srgb, var(--primary-color) 14%, transparent); }
-.er { display:grid; grid-template-columns:86px 1fr 132px 40px 40px 34px; gap:6px; align-items:center; margin-bottom:6px; }
+.er { position:relative; display:grid; grid-template-columns:86px 1fr 132px 40px 40px 34px; gap:6px; align-items:center; margin-bottom:6px; }
 .er input.i, .er select.i { height:38px; font-size:14px; padding:0 8px; }
 .er .st { width:40px; height:38px; border-radius:10px; border:1px solid var(--divider-color); background:none; cursor:pointer; font-size:16px; opacity:.45; }
 .er .st.on { opacity:1; border-color:#e9b949; background:color-mix(in srgb, #e9b949 18%, transparent); }
