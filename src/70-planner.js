@@ -824,13 +824,13 @@ class MealPlannerCard extends MPBase {
       const had = known.get(k);
       if (!had || (had.name[0] !== had.name[0].toUpperCase() && nm[0] === nm[0].toUpperCase())) known.set(k, { name: nm, aisle: (had && had.aisle) || x.aisle });
     }
-    const knownOpts = [...known.values()].sort((a, b) => a.name.localeCompare(b.name)).map((x) => `<option value="${esc(x.name)}"></option>`).join("");
+    const knownNames = [...known.values()].map((x) => x.name).sort((a, b) => a.localeCompare(b));
     if (useSuggest && sug) applySug();
     const sugBox = () => sug ? `💡 Suggested ingredients for this meal (${sug.length}). Check them and change anything before you save.<span class="sp"></span><button class="btn sm pri" data-a="usesug">Use these</button>` : "";
     const aisleOpts = (sel) => this._aisles.map((a) => `<option value="${esc(a.name)}"${a.name === sel ? " selected" : ""}>${a.icon} ${esc(a.name)}</option>`).join("");
     const rows = () => m.ingredients.map((i, k) => `<div class="er" data-k="${k}">
         <input class="i" data-f="qty" value="${esc(i.qty)}" placeholder="500 g" autocapitalize="none" autocorrect="off">
-        <input class="i" data-f="name" list="ingk" value="${esc(i.name)}" placeholder="Ingredient" autocapitalize="none" autocorrect="off" spellcheck="false" autocomplete="off">
+        <input class="i" data-f="name" value="${esc(i.name)}" placeholder="Ingredient" autocapitalize="none" autocorrect="off" spellcheck="false" autocomplete="off">
         <select class="i" data-f="aisle" aria-label="Aisle">${aisleOpts(i.aisle)}</select>
         <button class="st${isPantry(i) ? " on" : ""}" data-a="staple" data-k="${k}" title="Pantry staple: not added to the list automatically">⭐</button>
         <button class="st fz${i.frozen ? " on" : ""}" data-a="frz" data-k="${k}" title="Frozen: remind us to take it out the morning it's planned">❄️</button>
@@ -849,7 +849,6 @@ class MealPlannerCard extends MPBase {
       ${useSuggest && !sug ? `<div class="draftn">💡 Suggested ingredients filled in. Change, add or remove anything, then Save.</div>` : ""}
       <div class="draftn sugg"${sug ? "" : " hidden"}>${sugBox()}</div>
       <div class="erh"><span>Qty</span><span>Name</span><span class="ha">Aisle</span><span title="Pantry staple">⭐</span><span title="Needs defrosting">❄️</span><span></span></div>
-      <datalist id="ingk">${knownOpts}</datalist>
       <div id="rows">${rows()}</div>
       <button class="btn sm" data-a="addi">＋ Ingredient</button>
       <span class="mut" style="font-size:12px;margin-left:8px">⭐ = pantry staple. Staples and anything in the Pantry aisle aren't added to the list; they show under Check the pantry. ❄️ = needs defrosting: you get a reminder the morning it's planned.</span>
@@ -860,6 +859,7 @@ class MealPlannerCard extends MPBase {
     const ov = this._openSheet(html, async (a, b) => {
       if (a === "cancel") { draftDel(dkey); if (src) this._sheetMeal(uid); else this._closeSheet(); return; }
       if (a === "undraft") { draftDel(dkey); this._sheetEdit(uid); return; }
+      if (a === "tapick") { this._taPick(ov, b); return; }
       if (a === "usesug") { if (!sug) return; applySug(); ov.querySelector("#rows").innerHTML = rows(); const sb = ov.querySelector(".sugg"); sb.hidden = true; sb.innerHTML = ""; }
       else if (a === "emo") { m.emoji = b.dataset.e; ov.querySelector("#emoin").value = ""; ov.querySelectorAll(".emo button").forEach((x) => x.classList.toggle("on", x === b)); }
       else if (a === "staple") { const i = m.ingredients[Number(b.dataset.k)], on = !isPantry(i); i.staple = on; i.list = !on && PANTRY_AISLES.includes(i.aisle); b.classList.toggle("on", on); }
@@ -908,6 +908,7 @@ class MealPlannerCard extends MPBase {
       const r = e.target.closest(".er"); if (!r) return;
       const i = m.ingredients[Number(r.dataset.k)];
       i[f] = e.target.value;
+      if (f === "name") this._taShow(ov, e.target, knownNames);
       const kn = f === "name" && known.get(String(i.name).trim().toLowerCase());
       if (kn && kn.aisle && !i._aisleSet) { i.aisle = kn.aisle; r.querySelector('[data-f="aisle"]').value = kn.aisle; }
       else if (f === "name") { const g = guessAisle(i.name); if (g !== "Other" && !i._aisleSet) { i.aisle = g; r.querySelector('[data-f="aisle"]').value = g; } }
@@ -916,8 +917,85 @@ class MealPlannerCard extends MPBase {
       keep();
     }, { guard: true });
     if (dr || useSuggest) ov._dirty = true;
+    this._taWire(ov);
     ov.addEventListener("change", (e) => { if (e.target.dataset.f === "aisle") { const r = e.target.closest(".er"); const i = m.ingredients[Number(r.dataset.k)]; i.aisle = e.target.value; i._aisleSet = true; i._aisleUser = true; keep(); } });
     this._sheet = { kind: "edit" };
+  }
+
+  // Ingredient type-ahead (v1.39). The card's own list rather than a <datalist>: the browser draws a datalist
+  // drop-down below the field, above everything, so on the wall panel it sat on top of the onscreen keyboard.
+  // This one opens on whichever side has room inside the sheet and keeps clear of the onscreen keyboard.
+  _taShow(ov, el, names) {
+    const q = el.value.trim().toLowerCase();
+    const starts = [], has = [];
+    if (q) for (const n of names) {
+      const l = n.toLowerCase();
+      if (l === q) { starts.length = has.length = 0; break; } // already spelled like a known one
+      if (l.startsWith(q) || l.includes(" " + q)) starts.push(n); else if (l.includes(q)) has.push(n);
+    }
+    const hits = [...starts, ...has].slice(0, 8);
+    let ta = ov.querySelector(".ta");
+    if (!hits.length) { if (ta) ta.hidden = true; return; }
+    const row = el.closest(".er");
+    if (!ta || ta.parentNode !== row) {
+      if (ta) ta.remove();
+      ta = document.createElement("div"); ta.className = "ta"; ta.setAttribute("role", "listbox");
+      // Keep focus (and the onscreen keyboard) on the field while a name is tapped.
+      ta.addEventListener("pointerdown", (e) => e.preventDefault());
+      ta.addEventListener("mousedown", (e) => e.preventDefault());
+      row.appendChild(ta);
+    }
+    const mark = (n) => { const k = n.toLowerCase().indexOf(q); return k < 0 ? esc(n) : esc(n.slice(0, k)) + "<b>" + esc(n.slice(k, k + q.length)) + "</b>" + esc(n.slice(k + q.length)); };
+    ta.innerHTML = hits.map((n) => `<button type="button" tabindex="-1" role="option" data-a="tapick" data-v="${esc(n)}">${mark(n)}</button>`).join("");
+    ta._el = el; ta._on = -1; ta.hidden = false;
+    this._taPlace(ov, ta, el, hits.length);
+  }
+  _taPlace(ov, ta, el, n) {
+    const er = el.getBoundingClientRect(), sh = ov.querySelector(".sh").getBoundingClientRect();
+    const foot = ov.querySelector(".foot"), fh = foot ? foot.getBoundingClientRect().height : 0;
+    let lo = sh.bottom - fh, hi = sh.top;
+    // The onscreen keyboard (window.onscreenKeyboard, Misc › Wall panel) sits in the top layer, over anything
+    // this card draws, so the list must stay out of its way.
+    try {
+      const osk = window.onscreenKeyboard, h = osk && osk._host && osk._host();
+      if (h && h.matches(":popover-open")) {
+        const kr = h.getBoundingClientRect();
+        if (kr.height > 0) { if (kr.top > window.innerHeight / 3) lo = Math.min(lo, kr.top); else hi = Math.max(hi, kr.bottom); }
+      }
+    } catch (e) {}
+    lo = Math.min(lo, window.innerHeight); hi = Math.max(hi, 0);
+    const below = lo - er.bottom - 6, above = er.top - hi - 6, want = Math.min(n, 5) * 40 + 10;
+    const down = below >= want || (below >= above && below >= 90);
+    const room = Math.max(down ? below : above, 50);
+    ta.style.left = el.offsetLeft + "px";
+    ta.style.width = Math.max(el.offsetWidth, 180) + "px";
+    ta.style.maxHeight = Math.min(room, 5.5 * 40 + 10) + "px";
+    ta.style.top = down ? (el.offsetTop + el.offsetHeight + 4) + "px" : "";
+    ta.style.bottom = down ? "" : (el.offsetParent.offsetHeight - el.offsetTop + 4) + "px";
+  }
+  _taPick(ov, b) {
+    const ta = b.closest(".ta"), el = ta && ta._el; if (!el) return;
+    el.value = b.dataset.v;
+    el.dispatchEvent(new Event("input", { bubbles: true, composed: true }));
+    ta.hidden = true;
+    try { el.focus(); el.setSelectionRange(el.value.length, el.value.length); } catch (e) {}
+  }
+  _taWire(ov) {
+    ov.addEventListener("focusout", (e) => {
+      if (e.target.dataset && e.target.dataset.f === "name") setTimeout(() => { const ta = ov.querySelector(".ta"); if (ta && this.shadowRoot.activeElement !== ta._el) ta.hidden = true; }, 150);
+    });
+    ov.addEventListener("keydown", (e) => {
+      const ta = ov.querySelector(".ta");
+      if (!ta || ta.hidden || e.target !== ta._el) return;
+      const bs = [...ta.querySelectorAll("button")];
+      if (e.key === "ArrowDown" || e.key === "ArrowUp") {
+        e.preventDefault();
+        ta._on = e.key === "ArrowDown" ? (ta._on + 1) % bs.length : ta._on <= 0 ? bs.length - 1 : ta._on - 1;
+        bs.forEach((x, k) => x.classList.toggle("on", k === ta._on));
+        bs[ta._on].scrollIntoView({ block: "nearest" });
+      } else if (e.key === "Enter" && ta._on >= 0) { e.preventDefault(); this._taPick(ov, bs[ta._on]); }
+      else if (e.key === "Escape") { e.preventDefault(); e.stopPropagation(); ta.hidden = true; }
+    });
   }
 
   // An aisle picked by hand in the editor belongs to the ingredient, not just this meal: other meals using it

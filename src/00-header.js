@@ -57,6 +57,13 @@
  * stays. Open items for nights the last shop covered come back as top-ups.
  * The shop lives in input_text.meals_shop (JSON), so every screen agrees.
  *
+ * v1.39: the ingredient type-ahead in Edit is the card's own list instead of
+ * the browser's. The browser's drop-down always opened below the field, on
+ * top of the wall panel's onscreen keyboard. The new one opens on whichever
+ * side has room and never over the onscreen keyboard (above the field when
+ * the keyboard is at the bottom). Tap a name to use it; on a real keyboard,
+ * ↑/↓ and Enter pick one and Esc closes it.
+ *
  * v1.38: health estimates tuned after a review of every meal: veg mixes
  * (frozen veg, stir-fry veg) count as veg, creamy jar/tub sauces count as
  * processed, wine and sherry add nothing, and meals that are mostly white

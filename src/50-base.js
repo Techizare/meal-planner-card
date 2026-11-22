@@ -70,6 +70,14 @@ button { font:inherit; color:inherit; }
 .sh .foot { position:sticky; bottom:0; display:flex; gap:8px; flex-wrap:wrap; padding:12px 20px; background:var(--card-background-color, #fff);
   border-top:1px solid var(--divider-color); }
 .sh .foot .sp { flex:1; }
+.ta { position:absolute; z-index:6; min-width:180px; overflow-y:auto; overscroll-behavior:contain; padding:4px; border-radius:12px;
+  background:var(--card-background-color, #fff); color:var(--primary-text-color); border:1px solid var(--divider-color);
+  box-shadow:0 8px 24px rgba(0,0,0,.28); }
+.ta[hidden] { display:none; }
+.ta button { display:block; width:100%; min-height:40px; padding:6px 12px; border:none; border-radius:8px; background:none; color:inherit;
+  font:inherit; font-size:15px; text-align:left; cursor:pointer; }
+.ta button.on, .ta button:hover { background:color-mix(in srgb, var(--primary-color, #03a9f4) 16%, transparent); }
+.ta b { font-weight:700; }
 .sh .x { position:absolute; top:12px; right:12px; z-index:2; background:rgba(0,0,0,.35); color:#fff; border:none; }
 @media (max-width: 600px) {
   .ov { padding:0; align-items:flex-end; }
