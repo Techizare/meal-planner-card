@@ -20,6 +20,7 @@ const NUT = [
   [/\bham\b|prosciutto|corned beef|pastrami|luncheon|\bspam\b|deli meat|bresaola/i, "pm", 18, 2, 8, 0, { e: 20, k: 200, d: 150 }],
   [/(stock|broth|bouillon)(?! powder)/i, "cond", 0.5, 0.5, 0.2, 0, { c: 240, k: 1000, e: 250, d: 250 }],
   [/mayo|aioli|kewpie|ranch|caesar dressing/i, "cond", 1, 2, 75, 0, { c: 220, k: 400, d: 40 }],
+  [/creamy .*(sauce|pesto)|pesto sauce|(alfredo|carbonara|cheese) sauce|sauce (tub|jar|pouch)/i, "upf", 3, 8, 15, 1, { k: 300, e: 300, d: 300 }],
   [/pesto/i, "cond", 4, 6, 40, 2, { k: 190, e: 190, d: 100, c: 240 }],
   [/coconut (milk|cream)/i, "sat", 2, 3, 20, 0, { k: 400, e: 400, c: 240, d: 200 }],
   [/curry paste|laksa paste|tom yum paste/i, "cond", 2, 12, 10, 2, { e: 15, k: 200, d: 30 }],
@@ -98,6 +99,8 @@ const NUT = [
   [/cucumber|radish|fennel/i, "veg", 0.7, 3.6, 0.1, 0.6, { e: 300, k: 500, c: 120, d: 150 }],
   [/eggplant|aubergine/i, "veg", 1, 6, 0.2, 3, { e: 300, k: 300, c: 80, d: 300 }],
   [/green bean|runner bean|string bean|asparagus|beetroot|beet\b|turnip|parsnip|swede|okra|artichoke/i, "veg", 2, 8, 0.2, 3, { e: 150, k: 400, c: 110, d: 200 }],
+  [/frozen veg|mixed veg|stir ?fry veg|\bveg(e|gie|i)?s\b|vegetables/i, "veg", 3, 9, 0.4, 3.5, { c: 140, k: 1000, d: 150 }],
+  [/wine|sherry|\bbeer\b|cider|brandy|rum\b|mirin/i, "x", 0, 4, 0, 0, { c: 240, d: 30 }],
   [/tomato/i, "veg", 0.9, 3.9, 0.2, 1.2, { e: 120, k: 250, c: 180, d: 120 }],
   [/parsley|coriander|cilantro|basil|mint|dill|chives|rosemary|thyme|sage|tarragon|herb/i, "veg", 3, 6, 0.8, 3, { e: 5, k: 30, c: 30, d: 10 }],
   [/lemon|lime|orange|mandarin|grapefruit/i, "fr", 1, 9, 0.3, 2.8, { e: 70, k: 1000, c: 240, d: 70 }],
@@ -194,10 +197,12 @@ function healthScore(r) {
   else if (r.fib < 3 && plants >= 40) add(-1, `Low fibre, about ${Math.round(r.fib)} g a serve.`);
   if (by("leg") >= 50) pAdd(1, `Beans or lentils (${nm("leg")}): fibre and plant protein.`);
   if (by("wg") >= 30) pAdd(1, `Whole grains (${nm("wg")}).`);
+  const rg = by("rg");
+  if (rg >= 90 && by("wg") < 30) add(-1, `Mostly white carbs (${nm("rg")}), about ${g0(rg)} g a serve before cooking. Brown rice, wholemeal or more veg in their place would lift it.`);
   if (by("of") >= 60) add(1, `Oily fish (${nm("of")}): omega-3s.`);
   if (by("fried") >= 20) add(-1, `Fried or crumbed (${nm("fried")}).`);
   const upf = (r.names.upf || []).length;
-  if (upf && by("upf") >= 15) add(upf >= 2 ? -2 : -1, `Ultra-processed (${nm("upf")}): ready-made sauces, mixes and pastry tend to be high in salt, sugar or fat.`);
+  if (upf && by("upf") >= 8) add(upf >= 2 ? -2 : -1, `Ultra-processed (${nm("upf")}): ready-made sauces, mixes and pastry tend to be high in salt, sugar or fat.`);
   const sf = r.satFat || 0;
   if (sf >= 20) add(sf >= 35 ? -2 : -1, `Rich: lots of cream, cheese, butter or coconut (${nm("sat")}), about ${Math.round(sf)} g fat a serve from them.`);
   const sug = r.sugar || 0;

@@ -57,6 +57,11 @@
  * stays. Open items for nights the last shop covered come back as top-ups.
  * The shop lives in input_text.meals_shop (JSON), so every screen agrees.
  *
+ * v1.38: health estimates tuned after a review of every meal: veg mixes
+ * (frozen veg, stir-fry veg) count as veg, creamy jar/tub sauces count as
+ * processed, wine and sherry add nothing, and meals that are mostly white
+ * rice or pasta with little whole grain lose a point.
+ *
  * v1.37: the 🛒 trolley sheet fills Woolworths or Pak'nSave (switch at the
  * top; Pak'nSave guesses must be checked first), and the trolley card takes
  * shop: pns to show the Pak'nSave trolley (needs Woolies Bridge 0.3.6 and a
